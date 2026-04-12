@@ -1,3 +1,21 @@
+# LaTex generated files
+*.aux
+*.lof
+*.log
+*.lot
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints
+data/raw/
+data/interim/
+.env
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

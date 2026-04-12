@@ -1,6 +1,6 @@
-PWD c:\Users\javie\OneDrive - Universidad Pontificia Comillas\Escritorio\ICAI\2025-26\IA Geométrica\Prácticas\Proyecto Final\Reports\Final Paper
+PWD c:\Users\javie\OneDrive - Universidad Pontificia Comillas\Escritorio\ICAI\2025-26\IA Geométrica\Prácticas\sp100-graph-forecasting\reports\Final Paper
 INPUT C:\Users\javie\AppData\Local\MiKTeX\miktex\data\le\pdftex\pdflatex.fmt
-INPUT c:\Users\javie\OneDrive - Universidad Pontificia Comillas\Escritorio\ICAI\2025-26\IA Geométrica\Prácticas\Proyecto Final\Reports\Final Paper\main.tex
+INPUT c:\Users\javie\OneDrive - Universidad Pontificia Comillas\Escritorio\ICAI\2025-26\IA Geométrica\Prácticas\sp100-graph-forecasting\reports\Final Paper\main.tex
 OUTPUT main.log
 INPUT C:\Users\javie\AppData\Local\Programs\MiKTeX\tex\latex\base\article.cls
 INPUT C:\Users\javie\AppData\Local\Programs\MiKTeX\tex\latex\base\article.cls
@@ -37,6 +37,7 @@ INPUT .\main.aux
 INPUT main.aux
 OUTPUT main.aux
 INPUT C:\Users\javie\AppData\Local\Programs\MiKTeX\fonts\tfm\public\lm\ec-lmr17.tfm
+INPUT C:\Users\javie\AppData\Local\Programs\MiKTeX\fonts\tfm\public\lm\ec-lmr10.tfm
 INPUT C:\Users\javie\AppData\Local\Programs\MiKTeX\fonts\tfm\public\lm\ec-lmr12.tfm
 INPUT C:\Users\javie\AppData\Local\Programs\MiKTeX\tex\latex\lm\ot1lmr.fd
 INPUT C:\Users\javie\AppData\Local\Programs\MiKTeX\tex\latex\lm\ot1lmr.fd

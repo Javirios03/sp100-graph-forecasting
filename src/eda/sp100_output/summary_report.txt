@@ -1,0 +1,124 @@
+============================================================
+  S&P 100 COMPOSITION ANALYSIS
+  Period  : 2021-01-01 → 2025-12-31
+  Snapshots sampled : 258
+============================================================
+
+CONSTANT companies (present in all 258 snapshots): 88
+----------------------------------------
+  AAPL    Apple Inc.
+  ABBV    AbbVie
+  ABT     Abbott Laboratories
+  ACN     Accenture
+  ADBE    Adobe Inc.
+  AIG     American International Group
+  AMGN    Amgen
+  AMT     American Tower
+  AMZN    Amazon
+  AXP     American Express
+  BA      Boeing
+  BAC     Bank of America
+  BK      BNY Mellon
+  BKNG    Booking Holdings
+  BLK     BlackRock
+  BMY     Bristol Myers Squibb
+  C       Citigroup
+  CAT     Caterpillar Inc.
+  CL      Colgate-Palmolive
+  CMCSA   Comcast
+  COF     Capital One
+  COP     ConocoPhillips
+  COST    Costco
+  CRM     Salesforce
+  CSCO    Cisco
+  CVS     CVS Health
+  CVX     Chevron Corporation
+  DHR     Danaher Corporation
+  DIS     Walt Disney Company (The)
+  DUK     Duke Energy
+  EMR     Emerson Electric
+  FDX     FedEx
+  GD      General Dynamics
+  GE      GE Aerospace
+  GILD    Gilead Sciences
+  GM      General Motors
+  GOOG    Alphabet Inc.(Class C)
+  GOOGL   Alphabet Inc. (Class A)
+  GS      Goldman Sachs
+  HD      Home Depot
+  HON     Honeywell
+  IBM     IBM
+  INTC    Intel
+  JNJ     Johnson & Johnson
+  JPM     JPMorgan Chase
+  KO      Coca-Cola Company (The)
+  LLY     Eli Lilly and Company
+  LMT     Lockheed Martin
+  LOW     Lowe's
+  MA      Mastercard
+  MCD     McDonald's
+  MDLZ    Mondelēz International
+  MDT     Medtronic
+  MET     MetLife
+  MMM     3M
+  MO      Altria
+  MRK     Merck & Co.
+  MS      Morgan Stanley
+  MSFT    Microsoft
+  NEE     NextEra Energy
+  NFLX    Netflix, Inc.
+  NKE     Nike, Inc.
+  NVDA    Nvidia
+  ORCL    Oracle Corporation
+  PEP     PepsiCo
+  PFE     Pfizer
+  PG      Procter & Gamble
+  PM      Philip Morris International
+  PYPL    PayPal
+  QCOM    Qualcomm
+  RTX     RTX Corporation
+  SBUX    Starbucks
+  SO      Southern Company
+  SPG     Simon Property Group
+  T       AT&T
+  TGT     Target Corporation
+  TMO     Thermo Fisher Scientific
+  TSLA    Tesla, Inc.
+  TXN     Texas Instruments
+  UNH     UnitedHealth Group
+  UNP     Union Pacific Corporation
+  UPS     United Parcel Service
+  USB     U.S. Bancorp
+  V       Visa Inc.
+  VZ      Verizon
+  WFC     Wells Fargo
+  WMT     Walmart
+  XOM     ExxonMobil
+
+TRANSIENT companies (absent in ≥1 snapshot): 24
+----------------------------------------
+  Ticker   Presence%   Weeks  First seen    Last seen     Company
+  AVGO         96.5%     249  2021-03-26    2025-12-26    Broadcom
+  LIN          96.5%     249  2021-03-26    2025-12-26    Linde plc
+  TMUS         96.5%     249  2021-03-26    2025-12-26    T-Mobile US
+  CHTR         94.2%     243  2021-01-22    2025-09-19    Charter Communications
+  F            84.5%     218  2021-01-22    2025-03-21    Ford Motor Company
+  KHC          84.5%     218  2021-01-22    2025-03-21    Kraft Heinz
+  DOW          84.5%     218  2021-01-22    2025-03-21    Dow Inc.
+  SCHW         76.4%     197  2022-03-25    2025-12-26    Charles Schwab Corporation
+  META         72.1%     186  2022-06-10    2025-12-26    Meta Platforms
+  AMD          66.3%     171  2022-09-23    2025-12-26    Advanced Micro Devices
+  EXC          64.3%     166  2021-01-22    2024-03-22    Exelon
+  WBA          53.9%     139  2021-01-22    2023-09-15    Walgreens Boots Alliance
+  DE           46.1%     119  2023-09-22    2025-12-26    Deere & Company
+  INTU         35.7%      92  2024-03-29    2025-12-26    Intuit
+  DD           33.7%      87  2021-01-22    2022-09-16    DuPont
+  FB           27.9%      72  2021-01-22    2022-06-03    Meta
+  BIIB         23.6%      61  2021-01-22    2022-03-18    Biogen
+  NOW          15.5%      40  2025-03-28    2025-12-26    ServiceNow
+  PLTR         15.5%      40  2025-03-28    2025-12-26    Palantir Technologies
+  ISRG         15.5%      40  2025-03-28    2025-12-26    Intuitive Surgical
+  UBER          5.8%      15  2025-09-05    2025-12-26    Uber
+  ALL           3.5%       9  2021-01-22    2021-03-19    Allstate
+  KMI           3.5%       9  2021-01-22    2021-03-19    Kinder Morgan
+  SLB           3.5%       9  2021-01-22    2021-03-19    Schlumberger

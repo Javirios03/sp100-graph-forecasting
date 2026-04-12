@@ -1,0 +1,20 @@
+[project]
+name = "sp100-graph-forecasting"
+version = "0.1.0"
+description = "Geometric Deep Learning for weekly stock movement prediction on the S&P100"
+readme = "README.md"
+authors = [
+    { name = "Javirios03", email = "javier.riosmontes@gmail.com" }
+]
+requires-python = ">=3.11,<3.12"
+dependencies = []
+
+[project.scripts]
+sp100-graph-forecasting = "sp100_graph_forecasting:main"
+
+[build-system]
+requires = ["uv_build>=0.9.7,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv]
+package = false
