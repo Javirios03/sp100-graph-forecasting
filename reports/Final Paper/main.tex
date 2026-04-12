@@ -1,0 +1,49 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+\title{Does Graph Geometry Help Forecasting the S\&P100?\\[4pt]
+\large Proposal - Geometric AI}
+\author{Antonio Lorenzo Díaz-Meco - Francisco Javier Ríos Montes}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section*{Proposal}
+
+In this project, our objective is to investigate whether incorporating an explicit graph structure between stocks of the S\&P100 index improves short–horizon forecasting compared to models that ignore cross–asset relations. Concretely, we aim to study how different ways of constructing a stock graph (sector information, return correlations, and divergences between return distributions) affect the performance of temporal graph neural networks.
+
+Our primary research question is: \emph{To what extent does using a geometric, graph-based representation of the S\&P100 enhance the prediction of weekly stock movements, relative to purely temporal or tabular baselines without graphs?}
+
+Our hypothesis is that leveraging the relational structure between stocks, as captured by a graph, will provide additional context that improves forecasting accuracy, due to two main reasons: (i) stocks in the same sector often exhibit similar behavior, and (ii) historical return patterns can reveal latent connections that are not captured by individual time series models. For example, a stock that is not performing well might still be expected to rebound if its sector peers are doing well.
+
+\section*{Methodology}
+Throughout the project, we plan to construct, mainly, four different model structures: (i) A baseline tabular model lacking both a explicit graph structure and temporal modeling (e.g., a Random Forest), (ii) a temporal model that captures time dependencies but ignores cross–asset relations (e.g., an LSTM or GRU, a choice which will depend on preliminary experiments), and (iii) two temporal graph neural networks that incorporate different graph constructions: one based on sector information and return correlations, and another that also includes divergences between return distributions (such as KL divergence or Jensen-Shannon divergence, also to be determined based on preliminary experiments), such as a Temporal Graph Convolutional Network (T-GCN) or a Temporal Graph Attention Network (TGAT).
+
+The target variable for our forecasting task will be the weekly return (understood as the cumulative logarithmic return over 5 trading sessions), discretized into three classes: \emph{up}, \emph{down}, and \emph{neutral}, based on a threshold ($\epsilon$) that we will determine through exploratory data analysis. This discretization will allow us to frame the problem as a classification task, which is more interpretable and actionable for trading strategies than a purely regression-based approach.
+
+As to the data, we will use historical price data for the stocks in the S\&P100 index, which can be obtained easily through financial data APIs such as Yahoo Finance (\textit{yfinance}). The input will consist of a fixed window of past returns (the last 20 trading days) for each stock, including the following features:
+\begin{itemize}
+    \item Adjusted Closing Price: Difference between the adjusted closing price of the current day and the previous day, normalized by the previous day's price.
+    \item Volume: The trading volume for the current day, normalized by the average volume over the past 20 days.
+    \item Log Returns: The logarithmic return of the stock for the current day, calculated as $\log(\frac{P_t}{P_{t-1}})$, where $P_t$ is the adjusted closing price at time $t$.
+    \item Moving Averages: The 5-day and 20-day moving averages of the adjusted closing price, normalized by the current price.
+    \item RSI - Relative Strength Index: A momentum oscillator that measures the speed and change of price movements, calculated over a 14-day period (10 sessions)
+    \item Rolling volatility: The standard deviation of log returns over the past 20 days, normalized by the current price.
+    \item Sector Information: A one-hot encoded vector representing the sector to which each stock belongs, which will be used to construct the graph structure for the GNN models.
+    \item Market Capitalization: The market capitalization of the stock, normalized by the average market capitalization of the S\&P100 stocks over the past 20 days.
+\end{itemize}
+
+Something to note is that, while dynamic graph structures could be considered (as they would hypothetically yield better performance by capturing the evolving relationships between stocks), we will start with static graph constructions to keep the scope of the project manageable.
+
+\section*{Evaluation}
+To evaluate the performance of our models, we will use standard classification metrics such as accuracy, precision, recall, and F1-score. We will also analyze the feature importance and the learned graph structures to gain insights into which relationships between stocks are most influential for forecasting.
+
+\section*{Future Work}
+A possible extension of this project would involve swapping the target variable to a regression task, where we predict the volatility of the stock returns instead of their direction (by means of metrics such as the standard deviation of returns or the realized volatility over the same 5-day window). This would allow us to assess whether the graph structure also provides benefits for forecasting the magnitude of stock movements, which is one of the main goals of SOTA financial forecasting models. If the time constraints of the project allow, we will also explore this regression task in parallel with the classification task, to provide a more comprehensive analysis of the benefits of graph-based representations.
+
+\end{document}
