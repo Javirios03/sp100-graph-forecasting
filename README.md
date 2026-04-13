@@ -1,6 +1,8 @@
-# S&P100 Graph Forecasting
+# S&P100 Graph Forecasting **(ICAI Geometric Artificial Intelligence 2026)**
 
 This repository implements Geometric Deep Learning techniques to investigate whether graph-based representations of the S&amp;P100 improve weekly stock movement forecasting compared to traditional tabular and temporal models.
+
+The main objective of this project is to explore the empirical evidence to the question **"Do graph-based representations of the S&amp;P100 improve weekly stock movement forecasting compared to traditional tabular and temporal models?"**.
 
 ## Environment setup
 
@@ -70,3 +72,12 @@ The flags used in the command are:
 - `-v`: verbose output, which provides more detailed information about each test being run.
 - `-s`: allows the output from print statements in the tests to be displayed in the console, which can be helpful for debugging.
 - `-n auto`: enables parallel test execution using multiple CPU cores, which can significantly speed up the testing process, especially when there are many tests to run.
+
+### Baselines
+
+The `src/baselines/` directory contains the implementations of the baseline models for tabular and temporal models (RandomForest and LSTM, respectively). Each baseline is implemented in a separate script (`random_forest_tabular.py` and `lstm_temporal.py`), which can be executed independently to train the model, evaluate its performance, and visualize the results:
+
+```bash
+uv run python src/baselines/random_forest_tabular.py
+uv run python src/baselines/lstm_temporal.py
+```
