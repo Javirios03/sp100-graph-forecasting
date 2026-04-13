@@ -49,6 +49,98 @@ Teniendo esto en cuenta, consideraremos un rango temporal de 5 años para este p
 
 Hemos desarrollado un pipeline para obtener la composición histórica del índice S&P 100, accediendo al historico de revisiones de su artículo en Wikipedia (puede ser encontrado en `src/eda/sp100_components.ipynb`). Según este pipeline, el número de acciones que componen el índice varía periódicamente. Sin embargo, existen un conjunto de 88 acciones que han formado parte del índice durante todo el período de tiempo considerado (2021-2025). Por lo tanto, optamos en principio por limitar el universo de acciones a estas 88, ya que esto nos evitará tener que lidiar con problemas de datos faltantes o inconsistentes para aquellas acciones que solo formaron parte del índice durante una parte del período de tiempo. Además, estas 88 acciones representan una muestra suficientemente grande y diversa del mercado, lo que debería ser suficiente para entrenar un modelo robusto y generalizable.
 
+# Apuntes Importantes
+
+## Información Sectorial
+
+Disponemos de 88 empresas que pertenecen a 10 sectores diferentes. Dichos sectores, eso sí, no están distribuidos de manera uniforme, sino que algunos sectores tienen una representación mucho mayor que otros:
+| Sector | Número de Empresas |
+| --- | --- |
+| Financial Services | 16 |
+| Healthcare | 14 |
+| Technology | 12 |
+| Industrials | 12 |
+| Consumer Defensive | 10 |
+| Consumer Cyclical | 9 |
+| Communication Services | 7 |
+| Energy | 3 |
+| Utilities | 3 |
+| Real Estate | 2 |
+
+En principio, usaremos esta información sectorial. Sin embargo, cabe preguntarse qué ocurrirá en empresas pertenecientes a sectores poco representados (por ejemplo, Real Estate), que tenderán a ser menos conectada en el grafo (si se opta por usar conexiones sectoriales) y, además, tendrán menos datos disponibles para aprender patrones específicos de su sector. Esto podría afectar negativamente al desempeño del modelo para estas empresas. Por lo tanto, se podrían considerar algunas estrategias para mitigar este problema, como por ejemplo:
+
+- Agrupar sectores poco representados en una categoría "Otros", lo que permitiría aumentar la representación de esta categoría y facilitar el aprendizaje de patrones comunes entre estas empresas.
+- Usar técnicas de data augmentation para generar datos sintéticos para estas empresas, lo que podría ayudar a mejorar la capacidad del modelo para generalizar a estas empresas, aunque esto también podría introducir ruido si no se hace de manera cuidadosa
+
+## Creación de Nuevas Features
+
+### Target: Movimiento Semanal
+
+Inicialmente, imponemos un $\epsilon$ de 0.01 para clasificar los retornos semanales como positivos, negativos o neutrales. Sin embargo, este umbral es arbitrario y podría no ser el óptimo para nuestro problema. Obtenemos para dicho valor que tenemos:
+| Clase | Porcentaje de Muestras |
+| --- | --- |
+| Positivo | 41.29% |
+| Negativo | 33.86% |
+| Neutral | 24.85% |
+
+Estos porcentajes se podrían alinear con una intuición clave sobre el mercado: ligero sesgo alcista en los retornos semanales, lo que es consistente con la literatura financiera que muestra que, a largo plazo, los mercados tienden a subir. Sin embargo, también es importante considerar que este sesgo podría variar dependiendo del período de tiempo considerado y de las condiciones del mercado. En etapas posteriores, usaremos validación cruzada para ajustar este umbral $\epsilon$ y encontrar el valor que maximice el desempeño del modelo, lo que nos permitirá obtener una clasificación más equilibrada entre las clases y mejorar la capacidad de generalización del modelo.
+
+## Splits
+
+Disponemos de 5 años de datos. Decidimos inicialmente usar un split temporal de 3, 1 y 1 años para entrenamiento, validación y test respectivamente. Esto supone, en porcentajes, un split de 60%, 20% y 20%. Podría resultar insuficiente dedicar sólo el 60% de los datos al entrenamiento, pero nos parece que dedicar periodos relativamente similares a cada conjunto de datos (en cuanto a que todos ellos contienen año/s natural/es) es importante para evitar problemas de generalización a datos futuros. Además, el hecho de tener un año completo para validación y otro para test nos permitirá evaluar el desempeño del modelo en condiciones de mercado diferentes, lo que también es importante para garantizar su robustez y capacidad de generalización.
+
+# Resultados
+
+## Baseline: Random Forest
+
+Obtenemos un F1-macro CV (con 5 folds) en train de $0.393 \pm 0.008$, lo que es un resultado bastante decente para un modelo tan simple. Adicionalmente, en el conjunto de validación tenemos las siguientes estadísticas según clase:
+| Clase | Precision | Recall | F1-score | Support |
+| --- | --- | --- | --- | --- |
+| Negativo | 0.333 | 0.31 | 0.32 | 7089 |
+| Neutral | 0.31 | 0.5 | 0.38 | 6009 |
+| Positivo | 0.43 | 0.27 | 0.33 | 9077 |
+
+Disponemos asimismo de la siguiente matriz de confusión:
+| | Pred. Negativo | Pred. Neutral | Pred. Positivo |
+| --- | --- | --- | --- |
+| Real Negativo | 2194 | 3045 | 1850 |
+| Real Neutral | 1531 | 3031 | 1447 |
+| Real Positivo | 2827 | 3801 | 2449 |
+
+La principal ventaja de Random Forest, por otro lado, es que nos permite obtener, sencillamente, la importancia de cada feature para la predicción. Las 10 features más importantes, según el modelo, son las siguientes:
+| Feature | Importancia |
+| --- | --- |
+| roll_vol_20_min_20 | 0.0466 |
+| roll_vol_20_max_20 | 0.0386 |
+| roll_vol_20_mean_20 | 0.0381 |
+| roll_vol_20_last | 0.0380 |
+| log_ret_1d_min_20 | 0.0376 |
+| log_ret_1d_max_20 | 0.0344 |
+| ma_5_std_20 | 0.0336 |
+| log_ret_1d_std_20 | 0.0333 |
+| ma_5_min_20 | 0.0317 |
+| ma_20_max_20 | 0.0316 |
+
+El baseline más básico que podríamos considerar es un modelo que asignara, de manera aleatoria, una clase a cada muestra, respetando la distribución de clases en el conjunto de datos. En este caso, el F1-macro CV esperado sería aproximadamente de 0.33, lo que significa que nuestro modelo Random Forest ya está superando este baseline básico, lo cual es un buen indicio de que está aprendiendo patrones útiles en los datos. Sin embargo, también es importante considerar que un F1-macro CV de 0.393 no es un resultado excepcionalmente alto, lo que sugiere que todavía hay margen de mejora, especialmente teniendo en cuenta que estamos usando un modelo relativamente simple. Por lo tanto, es importante seguir explorando diferentes arquitecturas de modelos, así como ajustar los hiperparámetros y las features utilizadas, para intentar mejorar el desempeño del modelo y obtener resultados más robustos y generalizables.
+
+Un par de insights interesantes que se pueden extraer de la importancia de las features son los siguientes:
+
+- La importancia de las features relacionadas con la volatilidad (roll_vol_20_min_20, roll_vol_20_max_20, roll_vol_20_mean_20, roll_vol_20_last) sugiere que la volatilidad reciente de las acciones es un factor clave para predecir su comportamiento futuro. Esto podría indicar, por ejemplo, que se guía especialmente por una baja volatilidad (lo que podría ser un indicio de estabilidad) para predecir retornos neutrales.
+- En conjunto, podemos concluir que por un lado la volatilidad confunde la dirección, pero la variabilidad de volatilidad predice la dirección mejor que el precio o los retornos, lo que es un insight interesante sobre la naturaleza del problema y podría guiar la selección de features y la arquitectura del modelo en etapas posteriores.
+
+## Baseline: LSTM
+
+# Apéndices
+
+## Interpretación de Resultados
+
+- **F1-score**: Es la media armónica entre precision y recall, lo que nos da una medida equilibrada del desempeño del modelo, especialmente en casos de clases desbalanceadas. Un F1-score alto indica que el modelo tiene tanto una alta precisión (pocos falsos positivos) como un alto recall (pocos falsos negativos). Sin embargo, un F1-score bajo no indica directamente si el problema radica en la precisión o en el recall, por lo que es importante analizar ambas métricas por separado para entender mejor las fortalezas y debilidades del modelo.
+- **F1-Macro CV**: Esta métrica se define como la media no-ponderada del F1-score de cada clase:
+  $$F1\text{-}clase = 2 \cdot \frac{Precision \cdot Recall}{Precision + Recall}$$
+  $$F1\text{-}macro = \frac{F1\text{-}negativo + F1\text{-}neutral + F1\text{-}positivo}{3}$$
+
+Macro significa que cada clase, independientemente de su frecuencia, tiene el mismo peso en la métrica final. Por último, el hecho de que esta métrica se calcule mediante validación cruzada (CV) nos da una medida más robusta del desempeño del modelo, ya que promedia los resultados obtenidos en diferentes particiones de los datos, lo que ayuda a mitigar el riesgo de overfitting y proporciona una estimación más generalizable del desempeño del modelo.
+
 _Proposal_
 
 # Componentes a Elegir

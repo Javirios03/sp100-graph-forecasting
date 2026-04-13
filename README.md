@@ -52,3 +52,21 @@ uv pip install torch-geometric
 ```
 
 which should automatically install the compatible versions of `torch-scatter`, `torch-sparse`, `torch-cluster` and `torch-spline-conv` with CUDA support.
+
+## Scripts Execution
+
+### Tests
+
+In order to check that all the processed data files are consistent and valid (before feeding them to the models), we have implemented a set of basic tests in `tests/`. These tests check for consistency in the number of unique tickers and dates across all data files, as well as the validity of the target classes and split labels.
+
+To run the tests, execute the following command:
+
+```bash
+uv run pytest tests/ -v -s -n auto
+```
+
+The flags used in the command are:
+
+- `-v`: verbose output, which provides more detailed information about each test being run.
+- `-s`: allows the output from print statements in the tests to be displayed in the console, which can be helpful for debugging.
+- `-n auto`: enables parallel test execution using multiple CPU cores, which can significantly speed up the testing process, especially when there are many tests to run.
