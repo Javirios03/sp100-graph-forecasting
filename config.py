@@ -29,3 +29,24 @@ FEATURE_COLS = [
 TOP_K_CORR = 5  # Number of top correlated neighbors to connect in the correlation graph
 TOP_K_DIV = 5  # Number of top similar neighbors to connect in the JS divergence graph
 N_BINS = 30  # Number of bins to use when creating histograms for JS divergence calculation
+
+MAX_SECTOR_EDGES = 5 # Maximum number of edges to add based on sector similarity (to avoid overly dense graphs)
+
+# GNN Model
+GNN_MODEL = {
+    "lstm_hidden": 64,
+    "gat_hidden": 64,
+    "heads": 4,
+    "dropout": 0.2,
+}
+
+TRAINING = {
+    "lr": 1e-3,
+    "weight_decay": 1e-4,
+    "epochs": 30,
+    "batch_size": 1,  # Snapshot-based training
+    "grad_clip": 1.0,
+}
+
+GRAPH_TYPE = "corr"  # "corr" or "js"
+USE_EDGE_ATTR = True  # Whether to use edge attributes in the GNN

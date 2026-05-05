@@ -14,6 +14,31 @@ def validate_input(df: pd.DataFrame, mapping: pd.DataFrame) -> None:
     if "ticker" not in mapping.columns or "node_id" not in mapping.columns:
         raise ValueError("ticker_to_node mapping is malformed.")
 
+def normalize_features(df: pd.DataFrame, feature_cols: list) -> pd.DataFrame:
+    df = df.copy()
+
+    train_df = df[df["split"] == "train"]
+
+    stats = (
+        train_df.groupby("ticker")[feature_cols]
+        .agg(["mean", "std"])
+    )
+
+    stats.columns = ["_".join(col) for col in stats.columns]
+
+    df = df.merge(stats, on="ticker", how="left")
+
+    for col in feature_cols:
+        mean_col = f"{col}_mean"
+        std_col = f"{col}_std"
+
+        df[col] = (df[col] - df[mean_col]) / (df[std_col] + 1e-8)
+
+    drop_cols = [c for c in df.columns if c.endswith("_mean") or c.endswith("_std")]
+    df = df.drop(columns=drop_cols)
+
+    return df
+
 
 def main():
     df = pd.read_parquet(PROCESSED_DIR / "panel_with_splits.parquet")
@@ -21,6 +46,8 @@ def main():
 
     mapping = pd.read_parquet(PROCESSED_DIR / "ticker_to_node.parquet")
     validate_input(df, mapping)
+
+    df = normalize_features(df, FEATURE_COLS)
 
     ticker_to_node = dict(zip(mapping["ticker"], mapping["node_id"]))
     all_tickers = mapping.sort_values("node_id")["ticker"].tolist()

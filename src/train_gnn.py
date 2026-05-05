@@ -1,0 +1,260 @@
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn as nn
+from torch.utils.tensorboard import SummaryWriter
+import json
+from pathlib import Path
+
+from sklearn.metrics import f1_score
+
+from src.utils import PROCESSED_DIR
+from src.gnn.gat import GAT_LSTM
+from config import GNN_MODEL, TRAINING
+
+
+# ------------------------
+# DATA LOADING
+# ------------------------
+
+def load_data():
+    X = np.load(PROCESSED_DIR / "X_gnn.npy")
+    y = np.load(PROCESSED_DIR / "y_gnn.npy")
+
+    snapshot_index = pd.read_parquet(PROCESSED_DIR / "gnn_snapshots_index.parquet")
+
+    edge_index_corr = torch.load(PROCESSED_DIR / "edge_index_corr.pt")
+    edge_attr_corr = torch.load(PROCESSED_DIR / "edge_attr_corr.pt")
+
+    edge_index_js = torch.load(PROCESSED_DIR / "edge_index_js.pt")
+    edge_attr_js = torch.load(PROCESSED_DIR / "edge_attr_js.pt")
+
+    return X, y, snapshot_index, edge_index_corr, edge_attr_corr, edge_index_js, edge_attr_js
+
+
+# ------------------------
+# SPLITS
+# ------------------------
+
+def get_splits(snapshot_index):
+    train_idx = snapshot_index[snapshot_index["split"] == "train"].index.values
+    val_idx   = snapshot_index[snapshot_index["split"] == "val"].index.values
+    test_idx  = snapshot_index[snapshot_index["split"] == "test"].index.values
+    return train_idx, val_idx, test_idx
+
+
+# ------------------------
+# TRAIN / EVAL
+# ------------------------
+
+def train_epoch(model, optimizer, X, y, indices, edge_index, edge_attr, device):
+    model.train()
+    criterion = nn.CrossEntropyLoss()
+
+    total_loss = 0
+
+    for t in indices:
+        x_t = torch.tensor(X[t], dtype=torch.float32).to(device)
+        y_t = torch.tensor(y[t], dtype=torch.long).to(device)
+
+        optimizer.zero_grad()
+
+        out = model(x_t, edge_index, edge_attr)
+        loss = criterion(out, y_t)
+
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item()
+
+    return total_loss / len(indices)
+
+
+def evaluate(model, X, y, indices, edge_index, edge_attr, device):
+    model.eval()
+
+    all_preds = []
+    all_true = []
+
+    with torch.no_grad():
+        for t in indices:
+            x_t = torch.tensor(X[t], dtype=torch.float32).to(device)
+            y_t = torch.tensor(y[t], dtype=torch.long).to(device)
+
+            out = model(x_t, edge_index, edge_attr)
+            preds = out.argmax(dim=1)
+
+            all_preds.append(preds.cpu().numpy())
+            all_true.append(y_t.cpu().numpy())
+
+    all_preds = np.concatenate(all_preds)
+    all_true = np.concatenate(all_true)
+
+    return f1_score(all_true, all_preds, average="macro")
+
+def run_experiment(graph_type, use_edge_attr, exp_name, training_overrides=None, model_overrides=None):
+    training_cfg = TRAINING.copy()
+    model_cfg = GNN_MODEL.copy()
+
+    if training_overrides:
+        training_cfg.update(training_overrides)
+    if model_overrides:
+        model_cfg.update(model_overrides)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+
+    X, y, snapshot_index, ei_corr, ea_corr, ei_js, ea_js = load_data()
+
+    # Remap y values from -1, 0, 1 to 0, 1, 2
+    y_remap = y.copy()
+    y_remap[y == -1] = 0
+    y_remap[y == 0] = 1
+    y_remap[y == 1] = 2
+    y = y_remap
+
+    train_idx, val_idx, test_idx = get_splits(snapshot_index)
+
+    # -------- GRAPH SELECTION --------
+    if graph_type == "corr":
+        edge_index, edge_attr = ei_corr, ea_corr
+    else:
+        edge_index, edge_attr = ei_js, ea_js
+
+    edge_index = edge_index.to(device)
+    edge_attr = edge_attr.to(device)
+
+    if not use_edge_attr:
+        edge_attr = None
+
+    # -------- MODEL --------
+    model = GAT_LSTM(
+        in_feats=X.shape[-1],
+        lstm_hidden=model_cfg["lstm_hidden"],
+        gat_hidden=model_cfg["gat_hidden"],
+        heads=model_cfg["heads"],
+        dropout=model_cfg["dropout"],
+        edge_dim=edge_attr.shape[1] if edge_attr is not None else None,
+    ).to(device)
+
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=training_cfg["lr"],
+        weight_decay=training_cfg["weight_decay"],
+    )
+
+    # -------- LOGGING --------
+    log_dir = Path("runs") / exp_name
+    writer = SummaryWriter(log_dir=log_dir)
+
+    model_dir = Path("models")
+    model_dir.mkdir(exist_ok=True)
+
+    best_val = 0
+    history = []
+
+    # -------- TRAIN LOOP --------
+    for epoch in range(training_cfg["epochs"]):
+
+        loss = train_epoch(model, optimizer, X, y, train_idx, edge_index, edge_attr, device)
+        val_f1 = evaluate(model, X, y, val_idx, edge_index, edge_attr, device)
+
+        writer.add_scalar("Loss/train", loss, epoch)
+        writer.add_scalar("F1/val", val_f1, epoch)
+
+        print(f"[{exp_name}] Epoch {epoch} | Loss {loss:.4f} | Val F1 {val_f1:.4f}")
+
+        history.append({
+            "epoch": epoch,
+            "loss": loss,
+            "val_f1": val_f1
+        })
+
+        if val_f1 > best_val:
+            best_val = val_f1
+            torch.save(model.state_dict(), model_dir / f"{exp_name}.pt")
+
+    # -------- TEST --------
+    test_f1 = evaluate(model, X, y, test_idx, edge_index, edge_attr, device)
+
+    writer.add_scalar("F1/test", test_f1, 0)
+
+    writer.add_hparams(
+        {
+            "graph_type": graph_type,
+            "use_edge_attr": use_edge_attr,
+            "lr": TRAINING["lr"],
+            "lstm_hidden": GNN_MODEL["lstm_hidden"],
+            "gat_hidden": GNN_MODEL["gat_hidden"],
+        },
+        {
+            "hparam/test_f1": test_f1,
+            "hparam/best_val_f1": best_val,
+        }
+    )
+
+    writer.close()
+
+    # -------- SAVE RESULTS --------
+    results = {
+        "experiment": exp_name,
+        "graph_type": graph_type,
+        "use_edge_attr": use_edge_attr,
+        "best_val_f1": best_val,
+        "test_f1": test_f1,
+    }
+
+    Path("results").mkdir(exist_ok=True)
+
+    with open(Path("results") / f"{exp_name}.json", "w") as f:
+        json.dump(results, f, indent=4)
+
+    return results
+
+# def main():
+#     writer = SummaryWriter(log_dir="runs/gnn_training")
+
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+#     X, y, snapshot_index, ei_corr, ea_corr, ei_js, ea_js = load_data()
+#     train_idx, val_idx, test_idx = get_splits(snapshot_index)
+
+#     # Selección de grafo
+#     if GRAPH_TYPE == "corr":
+#         edge_index, edge_attr = ei_corr.to(device), ea_corr.to(device)
+#     else:
+#         edge_index, edge_attr = ei_js.to(device), ea_js.to(device)
+
+#     # Modelo
+#     model = GAT_LSTM(
+#         in_feats=X.shape[-1],
+#         lstm_hidden=GNN_MODEL["lstm_hidden"],
+#         gat_hidden=GNN_MODEL["gat_hidden"],
+#         heads=GNN_MODEL["heads"],
+#         dropout=GNN_MODEL["dropout"],
+#         edge_dim=edge_attr.shape[1] if USE_EDGE_ATTR else None,
+#     ).to(device)
+
+#     if not USE_EDGE_ATTR:
+#         edge_attr = None
+
+#     optimizer = torch.optim.Adam(model.parameters(), lr=TRAINING["lr"], weight_decay=TRAINING["weight_decay"])
+
+#     best_val = 0
+
+#     for epoch in range(TRAINING["epochs"]):
+#         loss = train_epoch(model, optimizer, X, y, train_idx, edge_index, edge_attr, device)
+#         val_f1 = evaluate(model, X, y, val_idx, edge_index, edge_attr, device)
+
+#         print(f"[{GRAPH_TYPE}] Epoch {epoch} | Loss {loss:.4f} | Val F1 {val_f1:.4f}")
+
+#         writer.add_scalar(f"{GRAPH_TYPE}/loss", loss, epoch)
+#         writer.add_scalar(f"{GRAPH_TYPE}/val_f1", val_f1, epoch)
+
+#         if val_f1 > best_val:
+#             best_val = val_f1
+#             torch.save(model.state_dict(), f"best_model_{GRAPH_TYPE}.pt")
+
+#     test_f1 = evaluate(model, X, y, test_idx, edge_index, edge_attr, device)
+#     print(f"Test F1 ({GRAPH_TYPE}): {test_f1:.4f}")
+#     writer.close()
