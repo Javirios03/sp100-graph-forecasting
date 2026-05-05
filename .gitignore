@@ -20,10 +20,15 @@ data/processed/*.npy
 data/processed/*.parquet
 data/processed/*.pkl
 
-# Models (pesados)
-models/*.pth
-models/*.pkl
-models/*.h5
+# Models, results and runs - Exclude all and include only final items
+models/
+!models/final/
+results/
+!results/final/
+runs/
+!runs/final/
+
+sources/
 
 # Logs/outputs
 logs/
@@ -36,6 +41,7 @@ htmlcov/
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb_checkpoints
+junk.ipynb
 
 # LaTeX
 *.aux
