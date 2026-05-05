@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard GNN SP100</title>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <style>
+      :root {
+        --bg: #f7f6f2;
+        --surface: #ffffff;
+        --surface-2: #f1efe9;
+        --text: #1f1f1f;
+        --muted: #666;
+        --border: #d9d6cf;
+        --accent: #01696f;
+        --shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+      }
+      body {
+        font-family: Inter, Arial, sans-serif;
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+      }
+      header {
+        padding: 24px 28px 12px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+      p {
+        margin: 0;
+        color: var(--muted);
+        max-width: 1000px;
+        line-height: 1.5;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 20px;
+        padding: 16px 28px 32px;
+      }
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+      }
+      .controls {
+        padding: 18px;
+        position: sticky;
+        top: 16px;
+        height: fit-content;
+      }
+      .controls h2 {
+        margin: 0 0 12px;
+        font-size: 18px;
+      }
+      .controls label {
+        display: block;
+        margin: 12px 0 6px;
+        font-weight: 600;
+      }
+      .controls select,
+      .controls input[type="range"] {
+        width: 100%;
+      }
+      .controls .hint {
+        font-size: 13px;
+        color: var(--muted);
+        margin-top: 6px;
+      }
+      .content {
+        display: grid;
+        gap: 20px;
+      }
+      .card {
+        padding: 16px;
+      }
+      .card h3 {
+        margin: 0 0 6px;
+        font-size: 20px;
+      }
+      .card .sub {
+        color: var(--muted);
+        margin-bottom: 12px;
+      }
+      .plot {
+        width: 100%;
+        height: 620px;
+      }
+      #snapshotsPlot {
+        height: 900px;
+      }
+      .legend-box {
+        font-size: 13px;
+        color: var(--muted);
+        margin-top: 12px;
+        line-height: 1.4;
+      }
+      code {
+        background: var(--surface-2);
+        padding: 2px 6px;
+        border-radius: 8px;
+      }
+      @media (max-width: 960px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .controls {
+          position: static;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Visualización de grafos GNN</h1>
+      <p>
+        Esta app muestra tres vistas complementarias para vuestros grafos: (1)
+        grafo base, (2) snapshots temporales con estructura fija, y (3) matrices
+        de adyacencia. Permite alternar entre el grafo de correlación y el de
+        divergencia JS, ambos con aristas sectoriales incluidas cuando existen.
+      </p>
+    </header>
+
+    <main class="grid">
+      <aside class="panel controls">
+        <h2>Controles</h2>
+        <label for="edgeMode">Tipo de grafo</label>
+        <select id="edgeMode">
+          <option value="corr">Correlación + sector</option>
+          <option value="js">JS divergence + sector</option>
+        </select>
+
+        <label for="colorMode">Color de snapshot</label>
+        <select id="colorMode">
+          <option value="target">target_class</option>
+          <option value="return">retorno medio ventana</option>
+        </select>
+
+        <label for="thresholdSlider"
+          >Umbral mínimo de peso para aristas no sectoriales</label
+        >
+        <input id="thresholdSlider" type="range" min="0" max="100" value="0" />
+        <div class="hint" id="thresholdHint"></div>
+
+        <label for="snapshotCount">Número de snapshots a mostrar</label>
+        <select id="snapshotCount">
+          <option>2</option>
+          <option selected>4</option>
+          <option>6</option>
+        </select>
+
+        <div class="legend-box" id="summaryBox"></div>
+      </aside>
+
+      <section class="content">
+        <section class="panel card">
+          <h3>Vista 1 · Grafo base</h3>
+          <div class="sub">
+            Nodos coloreados por sector y tamaño proporcional a capitalización.
+            La disposición es fija para facilitar la comparación entre vistas.
+          </div>
+          <div id="baseGraphPlot" class="plot"></div>
+        </section>
+
+        <section class="panel card">
+          <h3>Vista 2 · Snapshots temporales</h3>
+          <div class="sub">
+            Se reutiliza la misma geometría de nodos en varias fechas. Cambia el
+            estado de los nodos, no la estructura del grafo.
+          </div>
+          <div id="snapshotsPlot" class="plot"></div>
+        </section>
+
+        <section class="panel card">
+          <h3>Vista 3 · Matriz de adyacencia</h3>
+          <div class="sub">
+            Heatmap del grafo ordenado por sector para resaltar comunidades y
+            densidad de conexión.
+          </div>
+          <div id="adjacencyPlot" class="plot"></div>
+        </section>
+      </section>
+    </main>
+    <!-- Mismo HTML interactivo, pero ahora cargando __DATA__ real -->
+    <script>
+      const DATA = __DATA__; // ← Aquí van vuestros datos reales
+      // Mismo JS de la versión anterior
+    </script>
+  </body>
+</html>

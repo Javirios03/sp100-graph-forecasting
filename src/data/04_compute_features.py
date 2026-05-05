@@ -52,6 +52,9 @@ def main():
 
     if "ticker" not in features.columns:
         raise ValueError("Expected 'ticker' column in the features panel")
+    
+    # Since the currency is the same for all tickers, we can drop it
+    features = features.drop(columns=["currency"], errors="ignore")
 
     output_path = INTERIM_DIR / "features_panel.parquet"
     features.to_parquet(output_path, index=False)

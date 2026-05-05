@@ -130,6 +130,8 @@ Un par de insights interesantes que se pueden extraer de la importancia de las f
 
 ## Baseline: LSTM
 
+Entrenamos durante 30 epochs un modelo LSTM con una arquitectura relativamente simple (una capa LSTM bidireccional con 128 unidades y dropout del 20%, seguida de 3 capas fully connected con 64, 32 y 3 unidades respectivamente, y activación ReLU en las capas intermedias), usando AdamW como optimizador, una tasa de aprendizaje de 0.0005 y _weight_decay_ de 0.01. Obtenemos un F1-macro CV de $0.323$, lo que es un resultado bastante decepcionante, dado que es incluso inferior al baseline de Random Forest.
+
 # Apéndices
 
 ## Interpretación de Resultados
@@ -141,66 +143,91 @@ Un par de insights interesantes que se pueden extraer de la importancia de las f
 
 Macro significa que cada clase, independientemente de su frecuencia, tiene el mismo peso en la métrica final. Por último, el hecho de que esta métrica se calcule mediante validación cruzada (CV) nos da una medida más robusta del desempeño del modelo, ya que promedia los resultados obtenidos en diferentes particiones de los datos, lo que ayuda a mitigar el riesgo de overfitting y proporciona una estimación más generalizable del desempeño del modelo.
 
-_Proposal_
+## Pipeline de Datos
 
-# Componentes a Elegir
+Los datos originales son extraídos de Yahoo Finance usando la librería `yfinance`. Primero, en el script `src/data/01_load_clean_sp100.py`, se usa la API de `yfinance` para descargar los datos históricos de las acciones (sólo las 88 estables) desde el 1 de enero de 2021 hasta el 31 de diciembre de 2025. El resultado de este script es el archivo `data/raw/prices_raw.parquet`:
+| date | ticker | adj_close | close | high | low | open | volume |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 2021-01-04 | AAPL | 125.8566 | 129.41 | 133.6116 | 126.76 | 133.5204 | 143301900 |
+Todas estas columnas están en formato float64, excepto `date` (datetime64[ms]), `ticker` (string) y `volume` (int64).
 
-## Targets
+A continuación, en el script `src/data/02_build_metadata.py`, se obtienen los datos específicos de cada acción, guardándose en el archivo `data/raw/ticker_metadata.parquet`:
+| ticker | sector | industry | market_cap | short_name | currency |
+| --- | --- | --- | --- | --- | --- |
+| AAPL | Technology | Consumer Electronics | 3776182222848 | Apple Inc. | USD |
+Todas estas columnas están en formato string, excepto `market_cap` (int64).
 
-1. El primer objetivo de este proyecto es clasificar el retorno semanal de las acciones en tres categorías: positivo, negativo o neutral. Para ello obtendríamos el retorno logarítmico acumulado de las próximas 5 sesiones de cada acción y lo clasificaríamos en función de su signo: $|ret| < \epsilon \rightarrow \text{neutral}$, $ret > \epsilon \rightarrow \text{positivo}$, $ret < -\epsilon \rightarrow \text{negativo}$, donde $\epsilon$ es un umbral que se determinará a través de la validación cruzada.
+El tercer paso del pipeline, implementado en el script `src/data/03_build_base_dataset.py`, consiste en combinar los datos de precios con los datos de metadata para generar un dataset base que contenga toda la información relevante para cada acción y cada día. El resultado de este script es el archivo `data/processed/base_panel.parquet`, que tiene la siguiente estructura:
+| date | ticker | adj_close | close | high | low | open | volume | sector | industry | market_cap | short_name | currency |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+Los tipos de las columnas son acordes a los tipos de las columnas en los archivos originales, es decir, `date` (datetime64[ms]), `ticker`, `sector`, `industry`, `short_name` y `currency` (string), `adj_close`, `close`, `high`, `low`, `open` (float64) y `volume` y `market_cap` (int64).
 
-2. Si el primer objetivo es alcanzable y se obtiene un buen desempeño, se podría considerar un segundo objetivo más ambicioso: enfocar el problema, en vez desde un punto de vista de clasificación, desde un punto de vista de regresión. En este caso, el objetivo sería predecir la volatilidad futura de las acciones en el mismo horizonte temporal de 5 sesiones. Para ello, se estudiarían diferentes medidas de volatilidad, como la desviación estándar de los retornos diarios o _realized volatility_, y se elegiría la que mejor se adapte al problema.
+El cuarto paso supone la creación de nuevas features a partir del dataset base (`src/data/04_compute_features.py`), que usa el dataset `data/processed/base_panel.parquet` para generar el dataset intermedio `data/interim/features_panel.parquet`, que contiene un total de
+| Column | Type | Example |
+| --- | --- | --- |
+| date | datetime64[ms] | 2021-01-04 |
+| ticker | string | AAPL |
+| adj_close | float64 | 125.8566 |
+| close | float64 | 129.41 |
+| high | float64 | 133.6116 |
+| low | float64 | 126.76 |
+| open | float64 | 133.5204 |
+| volume | int64 | 143301900 |
+| sector | string | Technology |
+| industry | string | Consumer Electronics |
+| market_cap | int64 | 3776182222848 |
+| short_name | string | Apple Inc. |
+| currency | string | USD | (dropped posteriormente) |
+| log_ret_1d | float64 | 0.0288 |
+| adj_close_ret_1d | float64 | 0.01236 |
+| ma_5 | float64 | 126.45 |
+| ma_20 | float64 | 122.34 |
+| volume_ma_20 | float64 | 120000000 |
+| volume_norm | float64 | 0.5 |
+| roll_vol_20 | float64 | 0.02 |
+| rsi_14 | float64 | 70.5 |
 
-## Dataset
+El quinto paso consiste en añadir al conjunto anterior los targets. Para ello, en el script `src/data/05_compute_targets.py`, se calcula el retorno logarítmico semanal acumulado para cada acción y cada día, y se clasifica en positivo, negativo o neutral en función de su signo y un umbral $\epsilon$ iniciado en 0.01. El resultado de este paso es el dataset final `data/processed/panel_with_targets.parquet`, que tiene la misma estructura que el dataset intermedio, pero con dos columnas adicionales:
+| Column | Type | Example |
+| --- | --- | --- |
+| future_log_ret_5d | float64 | 0.015 |
+| target_class | float64 | 1.0 |
+donde `future_log_ret_5d` es el retorno logarítmico acumulado de los próximos 5 días, y `target_class` es la clase asignada a dicho retorno (1 para positivo, -1 para negativo y 0 para neutral).
 
-Para evitar tener demasiados datos, se podría limitar el análisis a un conjunto de acciones representativas del mercado, como las que componen el índice S&P 100. Esto permitiría obtener una muestra suficientemente grande y diversa, pero sin llegar a ser inmanejable. Además, se podrían incluir datos de diferentes períodos de tiempo para capturar distintas condiciones de mercado.
+El sexto paso del pipeline consiste en añadir otra columna relativa al conjunto al que pertenece cada muestra (train, validación o test), en función de su fecha. Para ello, se usa el script `src/data/06_build_splits.py`, que toma el dataset `data/processed/panel_with_targets.parquet` y genera el dataset `data/processed/panel_with_splits.parquet`, que tiene la misma estructura que el dataset anterior, pero con una columna adicional:
+| Column | Type | Example |
+| --- | --- | --- |
+| split | string | train |
+donde `split` indica el conjunto al que pertenece cada muestra, siendo "train" para muestras con fecha entre el 1 de enero de 2021 y el 31 de diciembre de 2023, "validation" para muestras con fecha entre el 1 de enero de 2024 y el 31 de diciembre de 2024, y "test" para muestras con fecha entre el 1 de enero de 2025 y el 31 de diciembre de 2025.
 
-## Tipo de Representación
+El séptimo paso consiste en la creación del conjunto de datos tabular (el que alimentaremos al modelo Random Forest), que se obtiene a partir del dataset `data/processed/panel_with_splits.parquet` mediante el script `src/data/07_build_tabular_dataset.py`, que genera el dataset `data/processed/tabular_dataset.parquet`, con 41 columnas: `ticker`, `date`, `split`, `target_class`, `sector`, `market_cap` y el resto siguen el patrón `FEATURE_STATISTIC_20`, donde `FEATURE` es el nombre de la feature original (`adj_close`, `volume_norm`, `log_ret_1d`, `ma_5`, `ma_20`, `rsi_14` o `roll_vol_20`), `STATISTIC` es una estadística calculada sobre una ventana de 20 días (`mean`, `std`, `min`, `max` o `last`), y el número 20 indica la longitud de la ventana usada para calcular dicha estadística. No se usa OHE para la variable `sector`, sino que se codifica como una variable categórica, dado que Random Forest puede manejar variables categóricas de manera eficiente sin necesidad de codificación adicional.
 
-Quedaría elegir si se usa un grafo estático o dinámico. Un grafo estático representaría las relaciones entre las acciones mediante una matriz de adyacencia constante (para todo el periodo), mientras que un grafo dinámico permitiría que estas relaciones cambien cada $X$ sesiones, capturando así la evolución temporal de las interacciones entre las acciones.
+El octavo paso del pipeline consiste en la creación del conjunto de datos para el modelo temporal (el que alimentaremos al modelo LSTM), que se obtiene a partir del dataset `data/processed/panel_with_splits.parquet` mediante el script `src/data/08_build_temporal_dataset.py`, que genera dos archivos NPY: `data/processed/X_temporal.npy` y `data/processed/y_temporal.npy`, así como un archivo de metadata `data/processed/temporal_metadata.parquet`. El archivo parquet tiene la siguiente estructura:
+| sample_id | ticker | date | split | target_class |
+| --- | --- | --- | --- | --- |
+| 0 | AAPL | 2021-03-02 | train | -1.0 |
+donde `sample_id` es un identificador único para cada muestra. El archivo `X_temporal.npy` tiene una forma de (N, 20, 7), donde N es el número total de muestras (106438, en este caso), 20 es la longitud de la secuencia temporal (ventana de entrada) y 7 es el número de features originales (adj_close, volume_norm, log_ret_1d, ma_5, ma_20, rsi_14 y roll_vol_20). El archivo `y_temporal.npy` tiene una forma de (N,), donde cada elemento es la clase objetivo correspondiente a cada muestra.
 
-Por otro lado, también se podría considerar la posibilidad de usar un grafo heterogéneo, donde se representen diferentes tipos de relaciones entre las acciones (por ejemplo, correlación, co-movimiento, etc.) mediante diferentes tipos de aristas. Esto permitiría capturar una mayor riqueza de información sobre las interacciones entre las acciones.
+El noveno paso es la creación del grafo, que se obtiene a partir del dataset `data/processed/panel_with_splits.parquet` mediante el script `src/data/09_build_graph.py`, que genera tres archivos: `data/processed/ticker_to_node.parquet`, `data/processed/graph_corr_edges.parquet` y `data/processed/graph_div_edges.parquet`. El primer archivo tiene la siguiente estructura:
+| ticker | node_id |
+| --- | --- |
+| AAPL | 0 |
+donde `node_id` es un identificador numérico único para cada acción, que se usará para construir el grafo. El segundo archivo tiene la siguiente estructura:
+| src | dst | src_ticker | dst_ticker | weight | edge_type |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0 | 58 | AAPL | MSFT | 0.722713 | correlation |
+donde `src` y `dst` son los identificadores numéricos de las acciones conectadas por la arista, `src_ticker` y `dst_ticker` son los tickers correspondientes a dichas acciones, `weight` es el peso de la arista (un número entre 0.3272 y 1 para el caso de las aristas basadas en correlación, y 1 para el caso de las aristas basadas en sector), y `edge_type` indica el tipo de arista (correlation o sector). El tercer archivo tiene la misma estructura que el segundo, pero con una columna adicional `distance`, que indica la medida de similitud geométrica entre las distribuciones de retornos de las acciones conectadas por la arista, calculada mediante la divergencia de Jensen-Shannon. En dicho caso, la columna `weight` tiene rango entre 0.85 y 1 para las aristas basadas en similitud geométrica, y es 1 para las aristas basadas en sector. Por otro lado, la columna `distance` tiene rango entre 0.013 y 0.176 (con media de 0.0458) para las aristas basadas en similitud geométrica, y es NAN (IMPORTANTE) para las aristas basadas en sector, dado que estas no se basan en una medida de similitud geométrica.
 
-En cuanto a la conexión entre nodos, existen distintas reglas que se podrían imponer:
+El último script, `src/data/10_build_gnn_dataset.py`, lee los archivos `data/processed/panel_with_splits.parquet` y `data/processed/ticker_to_node.parquet` para generar tres archivos: `data/processed/X_gnn.npy`, `data/processed/y_gnn.npy` y `data/processed/gnn_snapshots_index.parquet`. El archivo `X_gnn.npy` tiene una forma de (1168, 88, 20, 7), donde 1168 es el número total de muestras (correspondiente a la cantidad de días únicos en el conjunto de datos), 88 es el número de nodos (acciones) en el grafo, 20 es la longitud de la secuencia temporal (ventana de entrada) y 7 es el número de features originales. El archivo `y_gnn.npy` tiene una forma de (1168, 88), donde cada elemento es la clase objetivo correspondiente a cada muestra y cada nodo. El archivo `gnn_snapshots_index.parquet` tiene la siguiente estructura:
+| snapshot_id | date | split | num_nodes |
+| --- | --- | --- | --- |
+| 20 | 2021-03-02 | train | 88 |
+donde `snapshot_id` es un identificador único para cada snapshot del grafo (correspondiente a cada día único en el conjunto de datos), `date` es la fecha correspondiente a cada snapshot, `split` indica el conjunto al que pertenece cada snapshot (train, validación o test) y `num_nodes` es el número de nodos presentes en cada snapshot (que es 88 para todos los snapshots, dado que estamos usando un grafo estático con las mismas acciones durante todo el período de tiempo).
 
-- Conexiones únicamente sectoriales (acciones de la misma industria).
-- Conexiones basadas en la correlación histórica de los retornos (por ejemplo, conectando solo aquellas acciones cuya correlación supere un cierto umbral).
+## Estructura de los Grafos
 
-## Features incluidas en los Nodos
+Conceptualmente, el resultado de este proceso de construcción del grafo es un conjunto de 1168 snapshots de un grafo con 88 nodos (correspondientes a las 88 acciones). Dicho grafo (o más bien, sus nodos) no cambia a lo largo del tiempo, dado que estamos usando un grafo estático, pero las aristas sí pueden cambiar, por lo que lo podemos considerar estático en estructura pero dinámico en señales. Para cada fecha _t_, tenemos un snapshot del grafo con señales
+$$X_t \in \mathbb{R}^{88 \times 20 \times 7}, y_t \in \mathbb{R}^{88}$$
+donde $X_t$ es la matriz de features para cada nodo (acción) en el día _t_, y $y_t$ es el vector de clases objetivo para cada nodo en el día _t_.
 
-1. Ventana de entrada: Longitud de historial que alimenta al modelo para predecir el retorno futuro. Se podrían probar diferentes longitudes (por ejemplo, 20, 60, 120 sesiones) para encontrar la que mejor se adapte al problema.
-2. Tipo de features: Se podrían incluir tanto features técnicas (como medias móviles, RSI, etc.) como fundamentales (como ratios financieros, datos de balance, etc.) para capturar diferentes aspectos del comportamiento de las acciones.
-
-## Arquitectura del Modelo
-
-_Baselines_:
-
-- **Random Forest** - Tabular sin grafo: Usando features agregadas por ventana de entrada.
-- **LSTM** - Puramente Temporal: Usando secuencias de features sin considerar las relaciones entre acciones.
-
-_Modelos con Grafo_:
-
-- **GNN** + GRU/LSTM: Usando un grafo dinámico que capture las relaciones entre acciones a lo largo del tiempo, combinado con una capa recurrente para modelar la evolución temporal de las features.
-- **Temporal GNN**: Usando una arquitectura de GNN que integre directamente la dimensión temporal, como T-GCN o EvolveGCN, para capturar tanto las relaciones entre acciones como su evolución a lo largo del tiempo de manera más integrada.
-
-# Decisiones Principales
-
-1. **Tipo de Grafo**: Se optará, en principio, por un grafo estático para simplificar el problema inicial, aunque se explorará la posibilidad de usar un grafo dinámico si el desempeño del modelo lo justifica.
-2. **Conexiones entre Nodos**: Se establecerán conexiones tanto basadas en la pertenencia sectorial como en la correlación histórica de los retornos. Otra variante posible será incluir información geométrica de las distribuciones de retornos (por ejemplo, usando divergencias de Kullback-Leibler o Jensen-Shannon para medir la similitud entre las distribuciones de retornos de diferentes acciones).
-3. **Ventana Temporal**: En principio se optará por una ventana de entrada de 20 sesiones, ya que teóricamente debería ser capaz de capturar tanto tendencias a corto plazo como patrones de comportamiento más estables.
-4. **Features**: En un principio incluiremos unas pocas features para mantener el modelo relativamente simple:
-
-- Precio de cierre ajustado.
-- Volumen de negociación.
-- Retorno logarítmico diario.
-- Medias móviles (por ejemplo, de 5 y 20 sesiones).
-- RSI (Relative Strength Index).
-- Rolling volatility (desviación estándar de los retornos en la ventana de entrada).
-- Sector al que pertenece cada acción (codificado como una variable categórica).
-- Market cap (capitalización de mercado) para capturar el tamaño de la empresa.
-
-5. **Arquitectura del Modelo**: Se comenzará con una arquitectura de GNN combinada con una capa recurrente (GRU o LSTM) para modelar tanto las relaciones entre acciones como su evolución temporal:
-
-- GNN espacial sobre cada snapshot del grafo para capturar las relaciones entre acciones en cada punto temporal.
-- Capa recurrente (GRU o LSTM) que consume la secuencia de embeddings generados por la GNN para modelar la evolución temporal de las features y las relaciones entre acciones a lo largo del tiempo.
-- Capa final de clasificación (MLP) para predecir la categoría del retorno futuro (positivo, negativo o neutral).
+**spatio-temporal node classification on a static graph with dynamic node features**
