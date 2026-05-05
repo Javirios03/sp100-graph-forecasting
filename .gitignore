@@ -54,6 +54,8 @@ junk.ipynb
 *.toc
 *.out
 *.dvi
+*.bbl
+*.blg
 
 # IDE
 .vscode/
