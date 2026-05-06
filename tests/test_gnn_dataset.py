@@ -5,6 +5,21 @@ from pathlib import Path
 
 PROCESSED_DIR = Path("data/processed")
 
+REQUIRED_FILES = [
+    PROCESSED_DIR / "gnn_snapshots_index.parquet",
+    PROCESSED_DIR / "X_gnn.npy",
+    PROCESSED_DIR / "y_gnn.npy",
+    PROCESSED_DIR / "ticker_to_node.parquet",
+    PROCESSED_DIR / "graph_corr_edges.parquet",
+    PROCESSED_DIR / "graph_div_edges.parquet",
+    PROCESSED_DIR / "panel_with_splits.parquet",
+]
+
+pytestmark = pytest.mark.skipif(
+    any(not path.exists() for path in REQUIRED_FILES),
+    reason="integration GNN artifacts are missing; run uv run python -m src.data.run_pipeline",
+)
+
 
 @pytest.fixture(scope="session")
 def load_gnn_data():

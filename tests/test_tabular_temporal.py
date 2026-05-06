@@ -5,6 +5,18 @@ from pathlib import Path
 
 PROCESSED_DIR = Path("data/processed")
 
+REQUIRED_FILES = [
+    PROCESSED_DIR / "tabular_dataset.parquet",
+    PROCESSED_DIR / "temporal_index.parquet",
+    PROCESSED_DIR / "X_temporal.npy",
+    PROCESSED_DIR / "y_temporal.npy",
+]
+
+pytestmark = pytest.mark.skipif(
+    any(not path.exists() for path in REQUIRED_FILES),
+    reason="integration data artifacts are missing; run uv run python -m src.data.run_pipeline",
+)
+
 
 def test_tabular_dataset():
     df = pd.read_parquet(PROCESSED_DIR / "tabular_dataset.parquet")

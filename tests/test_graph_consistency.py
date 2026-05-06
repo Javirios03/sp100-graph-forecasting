@@ -5,6 +5,17 @@ from pathlib import Path
 
 PROCESSED_DIR = Path("data/processed")
 
+REQUIRED_FILES = [
+    PROCESSED_DIR / "ticker_to_node.parquet",
+    PROCESSED_DIR / "graph_corr_edges.parquet",
+    PROCESSED_DIR / "graph_div_edges.parquet",
+]
+
+pytestmark = pytest.mark.skipif(
+    any(not path.exists() for path in REQUIRED_FILES),
+    reason="integration graph artifacts are missing; run uv run python -m src.data.run_pipeline --from-step 09_build_graphs",
+)
+
 
 @pytest.fixture(scope="session")
 def load_data():
