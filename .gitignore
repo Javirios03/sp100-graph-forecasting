@@ -21,14 +21,6 @@ data/processed/*.parquet
 data/processed/*.pkl
 data/processed/*.pt
 
-# Models, results and runs - Exclude all and include only final items
-models/
-!models/final/
-results/
-!results/final/
-runs/
-!runs/final/
-
 sources/
 
 # Logs/outputs
