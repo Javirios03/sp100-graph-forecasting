@@ -47,13 +47,49 @@ def get_splits(snapshot_index):
 # TRAIN / EVAL
 # ------------------------
 
-def train_epoch(model, optimizer, X, y, indices, edge_index, edge_attr, device):
+def set_seed(seed):
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
+def remap_targets(y):
+    y_remap = y.copy()
+    y_remap[y == -1] = 0
+    y_remap[y == 0] = 1
+    y_remap[y == 1] = 2
+    return y_remap
+
+
+def compute_class_weights(y, indices, device, num_classes=3):
+    labels = y[indices].reshape(-1)
+    counts = np.bincount(labels, minlength=num_classes).astype(np.float32)
+    counts = np.maximum(counts, 1.0)
+    weights = counts.sum() / (num_classes * counts)
+    return torch.tensor(weights, dtype=torch.float32, device=device)
+
+
+def validate_splits(train_idx, val_idx, test_idx):
+    missing = []
+    if len(train_idx) == 0:
+        missing.append("train")
+    if len(val_idx) == 0:
+        missing.append("val")
+    if len(test_idx) == 0:
+        missing.append("test")
+    if missing:
+        raise ValueError(f"Empty split(s) found: {missing}")
+
+
+def train_epoch(model, optimizer, criterion, X, y, indices, edge_index, edge_attr, device, grad_clip=None):
     model.train()
-    criterion = nn.CrossEntropyLoss()
 
     total_loss = 0
 
-    for t in indices:
+    for t in np.random.permutation(indices):
         x_t = torch.tensor(X[t], dtype=torch.float32).to(device)
         y_t = torch.tensor(y[t], dtype=torch.long).to(device)
 
@@ -63,6 +99,8 @@ def train_epoch(model, optimizer, X, y, indices, edge_index, edge_attr, device):
         loss = criterion(out, y_t)
 
         loss.backward()
+        if grad_clip is not None:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
         optimizer.step()
 
         total_loss += loss.item()
@@ -90,7 +128,7 @@ def evaluate(model, X, y, indices, edge_index, edge_attr, device):
     all_preds = np.concatenate(all_preds)
     all_true = np.concatenate(all_true)
 
-    return f1_score(all_true, all_preds, average="macro")
+    return f1_score(all_true, all_preds, average="macro", zero_division=0)
 
 def run_experiment(graph_type, use_edge_attr, exp_name, training_overrides=None, model_overrides=None):
     '''
@@ -114,25 +152,25 @@ def run_experiment(graph_type, use_edge_attr, exp_name, training_overrides=None,
     if model_overrides:
         model_cfg.update(model_overrides)
 
+    set_seed(training_cfg.get("seed", 42))
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     X, y, snapshot_index, ei_corr, ea_corr, ei_js, ea_js = load_data()
 
-    # Remap y values from -1, 0, 1 to 0, 1, 2
-    y_remap = y.copy()
-    y_remap[y == -1] = 0
-    y_remap[y == 0] = 1
-    y_remap[y == 1] = 2
-    y = y_remap
+    y = remap_targets(y)
 
     train_idx, val_idx, test_idx = get_splits(snapshot_index)
+    validate_splits(train_idx, val_idx, test_idx)
 
     # -------- GRAPH SELECTION --------
     if graph_type == "corr":
         edge_index, edge_attr = ei_corr, ea_corr
-    else:
+    elif graph_type == "js":
         edge_index, edge_attr = ei_js, ea_js
+    else:
+        raise ValueError("graph_type must be either 'corr' or 'js'")
 
     edge_index = edge_index.to(device)
     edge_attr = edge_attr.to(device)
@@ -147,10 +185,20 @@ def run_experiment(graph_type, use_edge_attr, exp_name, training_overrides=None,
         gat_hidden=model_cfg["gat_hidden"],
         heads=model_cfg["heads"],
         dropout=model_cfg["dropout"],
+        lstm_layers=model_cfg["lstm_layers"],
+        bidirectional=model_cfg["bidirectional"],
         edge_dim=edge_attr.shape[1] if edge_attr is not None else None,
     ).to(device)
 
-    optimizer = torch.optim.Adam(
+    if training_cfg.get("class_weighting", True):
+        class_weights = compute_class_weights(y, train_idx, device)
+        print(f"Class weights: {class_weights.detach().cpu().numpy().round(3).tolist()}")
+    else:
+        class_weights = None
+
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
+
+    optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=training_cfg["lr"],
         weight_decay=training_cfg["weight_decay"],
@@ -163,13 +211,27 @@ def run_experiment(graph_type, use_edge_attr, exp_name, training_overrides=None,
     model_dir = Path("models")
     model_dir.mkdir(exist_ok=True)
 
-    best_val = 0
+    checkpoint_path = model_dir / f"{exp_name}.pt"
+    best_val = -1.0
+    best_epoch = -1
+    epochs_no_improve = 0
     history = []
 
     # -------- TRAIN LOOP --------
     for epoch in range(training_cfg["epochs"]):
 
-        loss = train_epoch(model, optimizer, X, y, train_idx, edge_index, edge_attr, device)
+        loss = train_epoch(
+            model,
+            optimizer,
+            criterion,
+            X,
+            y,
+            train_idx,
+            edge_index,
+            edge_attr,
+            device,
+            grad_clip=training_cfg.get("grad_clip"),
+        )
         val_f1 = evaluate(model, X, y, val_idx, edge_index, edge_attr, device)
 
         writer.add_scalar("Loss/train", loss, epoch)
@@ -185,9 +247,17 @@ def run_experiment(graph_type, use_edge_attr, exp_name, training_overrides=None,
 
         if val_f1 > best_val:
             best_val = val_f1
-            torch.save(model.state_dict(), model_dir / f"{exp_name}.pt")
+            best_epoch = epoch
+            epochs_no_improve = 0
+            torch.save(model.state_dict(), checkpoint_path)
+        else:
+            epochs_no_improve += 1
+            if epochs_no_improve >= training_cfg.get("patience", training_cfg["epochs"]):
+                print(f"[{exp_name}] Early stopping at epoch {epoch}")
+                break
 
     # -------- TEST --------
+    model.load_state_dict(torch.load(checkpoint_path, map_location=device))
     test_f1 = evaluate(model, X, y, test_idx, edge_index, edge_attr, device)
 
     writer.add_scalar("F1/test", test_f1, 0)
@@ -196,9 +266,14 @@ def run_experiment(graph_type, use_edge_attr, exp_name, training_overrides=None,
         {
             "graph_type": graph_type,
             "use_edge_attr": use_edge_attr,
-            "lr": TRAINING["lr"],
-            "lstm_hidden": GNN_MODEL["lstm_hidden"],
-            "gat_hidden": GNN_MODEL["gat_hidden"],
+            "lr": training_cfg["lr"],
+            "weight_decay": training_cfg["weight_decay"],
+            "grad_clip": training_cfg.get("grad_clip", 0.0) or 0.0,
+            "class_weighting": training_cfg.get("class_weighting", True),
+            "lstm_hidden": model_cfg["lstm_hidden"],
+            "gat_hidden": model_cfg["gat_hidden"],
+            "lstm_layers": model_cfg["lstm_layers"],
+            "bidirectional": model_cfg["bidirectional"],
         },
         {
             "hparam/test_f1": test_f1,
@@ -214,7 +289,9 @@ def run_experiment(graph_type, use_edge_attr, exp_name, training_overrides=None,
         "graph_type": graph_type,
         "use_edge_attr": use_edge_attr,
         "best_val_f1": best_val,
+        "best_epoch": best_epoch,
         "test_f1": test_f1,
+        "history": history,
     }
 
     Path("results").mkdir(exist_ok=True)
