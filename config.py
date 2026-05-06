@@ -48,6 +48,7 @@ TRAINING = {
     "epochs": 150,
     "batch_size": 1,  # Snapshot-based training
     "grad_clip": 1.0,
+    "early_stopping": False,
     "patience": 40,
     "seed": 42,
 }

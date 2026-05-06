@@ -1,5 +1,13 @@
 from src.train_gnn import run_experiment
 
+TRAINING_OVERRIDES = {
+    # Keep this False for report-quality curves: all epochs are logged, while
+    # final validation/test metrics still use the best checkpoint.
+    "early_stopping": False,
+    "epochs": 150,
+    "patience": 150,
+}
+
 experiments = [
     ("corr", True),
     ("js", True),
@@ -13,7 +21,8 @@ for graph_type, use_edge_attr in experiments:
     result = run_experiment(
         graph_type=graph_type,
         use_edge_attr=use_edge_attr,
-        exp_name=exp_name
+        exp_name=exp_name,
+        training_overrides=TRAINING_OVERRIDES,
     )
 
     all_results.append(result)

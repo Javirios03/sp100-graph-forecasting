@@ -193,6 +193,9 @@ def run_experiment(graph_type, use_edge_attr, exp_name, training_overrides=None,
     if model_overrides:
         model_cfg.update(model_overrides)
 
+    if training_cfg.get("patience") is None:
+        training_cfg["patience"] = training_cfg["epochs"]
+
     set_seed(training_cfg.get("seed", 42))
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -287,7 +290,10 @@ def run_experiment(graph_type, use_edge_attr, exp_name, training_overrides=None,
             torch.save(model.state_dict(), checkpoint_path)
         else:
             epochs_no_improve += 1
-            if epochs_no_improve >= training_cfg.get("patience", training_cfg["epochs"]):
+            if (
+                training_cfg.get("early_stopping", True)
+                and epochs_no_improve >= training_cfg["patience"]
+            ):
                 print(f"[{exp_name}] Early stopping at epoch {epoch}")
                 break
 
@@ -311,6 +317,9 @@ def run_experiment(graph_type, use_edge_attr, exp_name, training_overrides=None,
             "lr": training_cfg["lr"],
             "weight_decay": training_cfg["weight_decay"],
             "grad_clip": training_cfg.get("grad_clip", 0.0) or 0.0,
+            "early_stopping": training_cfg.get("early_stopping", True),
+            "patience": training_cfg["patience"],
+            "epochs": training_cfg["epochs"],
             "lstm_hidden": model_cfg["lstm_hidden"],
             "gat_hidden": model_cfg["gat_hidden"],
             "lstm_layers": model_cfg["lstm_layers"],
