@@ -6,7 +6,7 @@ from torch.utils.tensorboard import SummaryWriter
 import json
 from pathlib import Path
 
-from sklearn.metrics import f1_score
+from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_recall_fscore_support
 
 from src.utils import PROCESSED_DIR
 from src.gnn.gat import GAT_LSTM
@@ -100,7 +100,10 @@ def train_epoch(model, optimizer, criterion, X, y, indices, edge_index, edge_att
     return total_loss / len(indices)
 
 
-def evaluate(model, X, y, indices, edge_index, edge_attr, device):
+CLASS_NAMES = ["down", "neutral", "up"]
+
+
+def collect_predictions(model, X, y, indices, edge_index, edge_attr, device):
     model.eval()
 
     all_preds = []
@@ -120,7 +123,46 @@ def evaluate(model, X, y, indices, edge_index, edge_attr, device):
     all_preds = np.concatenate(all_preds)
     all_true = np.concatenate(all_true)
 
-    return f1_score(all_true, all_preds, average="macro", zero_division=0)
+    return all_true, all_preds
+
+
+def compute_metrics(y_true, y_pred):
+    precision, recall, f1, support = precision_recall_fscore_support(
+        y_true,
+        y_pred,
+        labels=[0, 1, 2],
+        zero_division=0,
+    )
+
+    precision_macro = precision_recall_fscore_support(
+            y_true, y_pred, average="macro", zero_division=0
+        )[0]
+    recall_macro = precision_recall_fscore_support(
+            y_true, y_pred, average="macro", zero_division=0
+        )[1]
+
+    return {
+        "accuracy": float(accuracy_score(y_true, y_pred)),
+        "precision_macro": float(precision_macro),
+        "recall_macro": float(recall_macro),
+        "f1_macro": float(f1_score(y_true, y_pred, average="macro", zero_division=0)),
+        "per_class": {
+            class_name: {
+                "precision": float(precision[i]),
+                "recall": float(recall[i]),
+                "f1": float(f1[i]),
+                "support": int(support[i]),
+            }
+            for i, class_name in enumerate(CLASS_NAMES)
+        },
+        "confusion_matrix": confusion_matrix(y_true, y_pred, labels=[0, 1, 2]).tolist(),
+        "labels": CLASS_NAMES,
+    }
+
+
+def evaluate(model, X, y, indices, edge_index, edge_attr, device):
+    y_true, y_pred = collect_predictions(model, X, y, indices, edge_index, edge_attr, device)
+    return f1_score(y_true, y_pred, average="macro", zero_division=0)
 
 def run_experiment(graph_type, use_edge_attr, exp_name, training_overrides=None, model_overrides=None):
     '''
@@ -251,9 +293,16 @@ def run_experiment(graph_type, use_edge_attr, exp_name, training_overrides=None,
 
     # -------- TEST --------
     model.load_state_dict(torch.load(checkpoint_path, map_location=device))
-    test_f1 = evaluate(model, X, y, test_idx, edge_index, edge_attr, device)
+    val_true, val_pred = collect_predictions(model, X, y, val_idx, edge_index, edge_attr, device)
+    test_true, test_pred = collect_predictions(model, X, y, test_idx, edge_index, edge_attr, device)
+    val_metrics = compute_metrics(val_true, val_pred)
+    test_metrics = compute_metrics(test_true, test_pred)
+    test_f1 = test_metrics["f1_macro"]
 
     writer.add_scalar("F1/test", test_f1, 0)
+    writer.add_scalar("Accuracy/test", test_metrics["accuracy"], 0)
+    writer.add_scalar("Precision/test_macro", test_metrics["precision_macro"], 0)
+    writer.add_scalar("Recall/test_macro", test_metrics["recall_macro"], 0)
 
     writer.add_hparams(
         {
@@ -284,6 +333,10 @@ def run_experiment(graph_type, use_edge_attr, exp_name, training_overrides=None,
         "best_epoch": best_epoch,
         "test_f1": test_f1,
         "history": history,
+        "metrics": {
+            "val": val_metrics,
+            "test": test_metrics,
+        },
     }
 
     Path("results").mkdir(exist_ok=True)

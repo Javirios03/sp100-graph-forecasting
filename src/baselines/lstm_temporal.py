@@ -1,12 +1,58 @@
+import json
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    precision_recall_fscore_support,
+)
 import matplotlib.pyplot as plt
 import seaborn as sns
 from src.utils import PROCESSED_DIR, MODELS_DIR
+
+
+CLASS_NAMES = ["down", "neutral", "up"]
+CLASS_VALUES = [0, 1, 2]
+
+
+def compute_metrics(y_true, y_pred):
+    precision, recall, f1, support = precision_recall_fscore_support(
+        y_true,
+        y_pred,
+        labels=CLASS_VALUES,
+        zero_division=0,
+    )
+    precision_macro, recall_macro, _, _ = precision_recall_fscore_support(
+        y_true,
+        y_pred,
+        average="macro",
+        zero_division=0,
+    )
+
+    return {
+        "accuracy": float(accuracy_score(y_true, y_pred)),
+        "precision_macro": float(precision_macro),
+        "recall_macro": float(recall_macro),
+        "f1_macro": float(f1_score(y_true, y_pred, average="macro", zero_division=0)),
+        "per_class": {
+            class_name: {
+                "precision": float(precision[i]),
+                "recall": float(recall[i]),
+                "f1": float(f1[i]),
+                "support": int(support[i]),
+            }
+            for i, class_name in enumerate(CLASS_NAMES)
+        },
+        "confusion_matrix": confusion_matrix(y_true, y_pred, labels=CLASS_VALUES).tolist(),
+        "labels": CLASS_NAMES,
+    }
 
 print("Cargando dataset temporal...")
 meta = pd.read_parquet(PROCESSED_DIR / "temporal_index.parquet")
@@ -44,15 +90,19 @@ class StockLSTM(nn.Module):
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 train_mask = meta["split"] == "train"
 val_mask = meta["split"] == "val"
+test_mask = meta["split"] == "test"
 
 X_train, y_train = X[train_mask], y_mapped[train_mask]
 X_val, y_val = X[val_mask], y_mapped[val_mask]
+X_test, y_test = X[test_mask], y_mapped[test_mask]
 
 # Tensores + VALIDATION LOADER (FIX #5)
 X_train_t = torch.FloatTensor(X_train).to(device)
 y_train_t = torch.LongTensor(y_train).to(device)
 X_val_t = torch.FloatTensor(X_val).to(device)
 y_val_t = torch.LongTensor(y_val).to(device)
+X_test_t = torch.FloatTensor(X_test).to(device)
+y_test_t = torch.LongTensor(y_test).to(device)
 
 train_dataset = TensorDataset(X_train_t, y_train_t)
 val_dataset = TensorDataset(X_val_t, y_val_t)  # ← NUEVO!
@@ -68,7 +118,9 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3)
 
 print("\nEntrenando LSTM (30 epochs)...")
 best_f1, epochs_no_improve = 0, 0
+best_epoch = -1
 patience = 7
+history = []
 
 for epoch in range(30):
     # Train
@@ -97,24 +149,36 @@ for epoch in range(30):
             val_true.extend(batch_y.cpu().numpy())
     
     val_loss /= len(val_loader)
-    scheduler.step(val_loss)  # ← FIX #2
+    scheduler.step(val_loss)
+    train_loss = total_loss / len(train_loader)
+    val_f1 = classification_report(
+        val_true,
+        val_preds,
+        output_dict=True,
+        zero_division=0,
+    )["macro avg"]["f1-score"]
+    history.append({
+        "epoch": epoch,
+        "loss": float(train_loss),
+        "val_loss": float(val_loss),
+        "val_f1": float(val_f1),
+    })
     
     # F1 cada 5 epochs (FIX #3)
     if epoch % 5 == 0:
-        val_f1 = classification_report(val_true, val_preds, 
-                                     output_dict=True, zero_division=0)["macro avg"]["f1-score"]
-        print(f"Epoch {epoch}, Train Loss: {total_loss/len(train_loader):.4f}, "
+        print(f"Epoch {epoch}, Train Loss: {train_loss:.4f}, "
               f"Val Loss: {val_loss:.4f}, Val F1: {val_f1:.4f}")
-        
-        if val_f1 > best_f1:
-            best_f1 = val_f1
-            epochs_no_improve = 0
-            torch.save(model.state_dict(), MODELS_DIR / "lstm_temporal.pth")
-        else:
-            epochs_no_improve += 1
-            if epochs_no_improve >= patience:
-                print(f"Early stopping at epoch {epoch}")
-                break
+
+    if val_f1 > best_f1:
+        best_f1 = val_f1
+        best_epoch = epoch
+        epochs_no_improve = 0
+        torch.save(model.state_dict(), MODELS_DIR / "lstm_temporal.pth")
+    else:
+        epochs_no_improve += 1
+        if epochs_no_improve >= patience:
+            print(f"Early stopping at epoch {epoch}")
+            break
 
 # sFinal Evaluation - Batch to allow GPU inference
 print("\nCargando mejor modelo...")
@@ -143,6 +207,15 @@ with torch.no_grad():
         val_preds.extend(pred)
         val_true.extend(y_val_t[i:i+1024].cpu().numpy())
 
+# Eval TEST por batches
+test_preds, test_true = [], []
+with torch.no_grad():
+    for i in range(0, len(X_test_t), 1024):
+        batch = X_test_t[i:i+1024]
+        pred = torch.argmax(model(batch), dim=1).cpu().numpy()
+        test_preds.extend(pred)
+        test_true.extend(y_test_t[i:i+1024].cpu().numpy())
+
 # Map back
 def map_back(preds):
     return np.where(np.array(preds) == 0, -1, np.array(preds)-1)
@@ -160,6 +233,15 @@ cm_val = confusion_matrix(np.array(val_true), val_preds)
 print("\nConfusion Matrix VAL:")
 print(cm_val)
 
+print("\nF1-macro TEST:")
+print(classification_report(np.array(test_true), test_preds,
+                          target_names=["Down (0)", "Neutral (1)", "Up (2)"],
+                          zero_division=0))
+
+cm_test = confusion_matrix(np.array(test_true), test_preds)
+print("\nConfusion Matrix TEST:")
+print(cm_test)
+
 # Plot
 plt.figure(figsize=(12, 5))
 plt.subplot(1, 2, 1)
@@ -174,3 +256,21 @@ plt.show()
 
 print(f"\n✅ LSTM F1-macro FINAL: {best_f1:.4f} (vs RF 0.34)")
 print(f"GPU Memory: {torch.cuda.memory_allocated()/1e9:.1f}GB")
+
+results = {
+    "experiment": "lstm_temporal",
+    "model_type": "lstm",
+    "best_val_f1": float(best_f1),
+    "best_epoch": int(best_epoch),
+    "test_f1": float(f1_score(test_true, test_preds, average="macro", zero_division=0)),
+    "history": history,
+    "metrics": {
+        "train": compute_metrics(train_true, train_preds),
+        "val": compute_metrics(val_true, val_preds),
+        "test": compute_metrics(test_true, test_preds),
+    },
+}
+
+Path("results").mkdir(exist_ok=True)
+with open(Path("results") / "lstm_temporal.json", "w", encoding="utf-8") as f:
+    json.dump(results, f, indent=4)
