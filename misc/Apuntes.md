@@ -54,15 +54,67 @@ Centrándonos en el modelo GNN, cabe destacar cómo evolucionan los datos confor
 
 1. Input - X: (T, N, W, F) con T = número de días/snapshots (1168), N = número de nodos (88), W = ventana temporal (20), F = número de features por nodo (7). Y: (T, N) con la clase a predecir para cada acción y cada día. Cada elemento de X es, por lo tanto, un grafo completo correspondiente a un día concreto, con 88 nodos (acciones) y 7 features por nodo, que representan la información relevante de cada acción en los últimos 20 días.
 
+La arquitectura del modelo GNN se puede describir de la siguiente manera:
+
+- Temporal Encoder: Para cada time-step, se aplica una capa LSTM a la secuencia de features correspondiente a ese nodo, lo que nos da una representación temporal de cada acción. La salida de esta capa es un tensor de forma (N, W, H), donde H es el número de unidades ocultas en la capa LSTM.
+- Graph Attention Layer: A continuación, se aplican dos capas GAT, que permiten al modelo aprender a asignar diferentes pesos a las conexiones entre nodos en función de su relevancia para la tarea de predicción. La primera capa GAT toma como entrada el último estado oculto de la capa LSTM para cada nodo (que sirve como resumen de la ventana temporal completa de cada nodo), es decir, un input de dimensión (N, H), y produce una representación de cada nodo que incorpora la información de sus vecinos, con una dimensión de salida de (N, H' \* B), donde H' es el número de unidades ocultas en la capa GAT y B es el número de cabezas de atención (4 en este caso). La segunda capa GAT toma como entrada la salida de la primera capa GAT y produce una representación final de cada nodo con una dimensión de (N, H'), con H' la misma que en la primera capa GAT. Esta segunda capa tiene únicamente una cabeza de atención, lo que permite obtener una representación más compacta de cada nodo. Tras cada capa GAT, se aplica una función de activación ELU (Exponential Linear Unit) (introducir footnote de decisión en vez de ReLU o alternativas) y ambas capas GAT tienen un dropout del 20% para evitar el overfitting.
+- MLP: Finalmente, se aplica una capa fully connected a la salida de la segunda capa GAT, compuesta por 2 capas Linear con activación ReLU y Dropout del 20%, que produce la predicción final para cada nodo, con una dimensión de salida de (N, 3), correspondiente a las probabilidades de cada clase (negativo, neutral, positivo) para cada acción.
+
+Una vez hechos los experimentos de hiperparámetros, decidimos ajustar el modelo GNN usando una arquitectura más compleja. En concreto:
+
+- Temporal Encoder: Se añade una capa adicional y bidireccionalidad a la capa LSTM, lo que permite capturar patrones temporales en ambas direcciones (pasado y futuro) y obtener una representación más rica de cada acción.
+- Atención Temporal: En vez de usar únicamente el último estado oculto de la capa LSTM, se aplica un mecanismo de atención temporal para obtener una representación ponderada de toda la secuencia temporal de cada nodo, lo que permite al modelo enfocarse en los time-steps más relevantes para la tarea de predicción.
+- Skip Connections: Se añaden conexiones residuales entre la entrada de la capa GAT y su salida, lo que permite al modelo conservar información relevante de la representación original de cada nodo y facilitar el aprendizaje de patrones complejos en el grafo.
+- BatchNorm: Se añade una capa de normalización por lotes después de cada capa GAT, lo que ayuda a estabilizar el entrenamiento y combate la no-estacionariedad inherente de los datos financieros.
+
 ## GNN
 
-Para obtener el mejor rendimiento posible (y teniendo en cuenta que, dada la complejidad de la arquitectura, es más importante en este case hacer una búsqueda razonable de hiperparámetros), decidimos hacer una búsqueda de hiperparámetros manual. Para ello, definimos un _grid search_ con los siguientes hiperparámetros y valores:
+Para obtener el mejor rendimiento posible (y teniendo en cuenta que, dada la complejidad de la arquitectura, es más importante en este case hacer una búsqueda razonable de hiperparámetros), decidimos hacer una búsqueda de hiperparámetros manual. Para ello, definimos un _grid search_ con los siguientes hiperparámetros y valores, sólo para el modelo GNN con conexiones basadas en divergencia y sectoriales (que es el modelo más complejo y, por lo tanto, el que más se beneficiará de un ajuste cuidadoso de los hiperparámetros), esperando después que los hiperparámetros óptimos encontrados sean aplicables también a la variante con conexiones basadas sólo en correlación:
 
 - Learning Rate: [1e-4, 5e-4, 1e-3]
 - Weight Decay: [0, 1e-4, 1e-3]
 - Epochs: [20, 40]
 - LSTM Hidden Units: [32, 64]
 - GAT Hidden Units: [32, 64]
+
+El mejor modelo de las 72 combinaciones posibles de hiperparámetros resulta ser el siguiente:
+
+- Learning Rate: 5e-4
+- Weight Decay: 0
+- Epochs: 40
+- LSTM Hidden Units: 32
+- GAT Hidden Units: 64
+
+con un F1-macro CV en test de 0.343. Posteriormente, hacemos una búsqueda más en concreto, aplicado esta vez a ambas variantes del modelo GNN, con los siguientes hiperparámetros y valores:
+
+- Learning Rate: [5e-4, 8e-4, 2.5e-3]
+- Weight Decay: Constante en 1e-4. Se decide no cambiar hasta futuras iteraciones
+- Epochs: Constante en 80
+- LSTM Hidden Units: [64, 128]
+- GAT Hidden Units: [64, 128]
+
+Para el caso de GNN con conexiones basadas en divergencia y sectoriales, el mejor modelo resulta ser el siguiente:
+
+- Learning Rate: 5e-4
+- Weight Decay: 1e-4
+- Epochs: 80
+- LSTM Hidden Units: 128
+- GAT Hidden Units: 64
+
+con un F1-macro CV en test de 0.315. Para el caso de GNN con conexiones basadas sólo en correlación (y sectoriales), el mejor modelo resulta ser el siguiente:
+
+- Learning Rate: 8e-4
+- Weight Decay: 1e-4
+- Epochs: 80
+- LSTM Hidden Units: 128
+- GAT Hidden Units: 64
+
+Tras los cambios finales explicados anteriormente, ejecutamos una última búsqueda de hiperparámetros, con los siguientes valores:
+
+- Learning Rate: [5e-4, 8e-4, 1e-3]
+- Weight Decay: [0, 1e-4]
+- LSTM Hidden Units: [64, 128]
+- GAT Hidden Units: [64, 128]
 
 # Rango Temporal
 

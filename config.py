@@ -37,13 +37,15 @@ GNN_MODEL = {
     "lstm_hidden": 64,
     "gat_hidden": 64,
     "heads": 4,
-    "dropout": 0.2,
+    "dropout": 0.3,
+    "lstm_layers": 2,
+    "bidirectional": True,
 }
 
 TRAINING = {
-    "lr": 1e-3,
+    "lr": 6e-4,
     "weight_decay": 1e-4,
-    "epochs": 30,
+    "epochs": 100,
     "batch_size": 1,  # Snapshot-based training
     "grad_clip": 1.0,
 }

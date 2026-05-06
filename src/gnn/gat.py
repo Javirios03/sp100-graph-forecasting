@@ -14,19 +14,37 @@ class GAT_LSTM(nn.Module):
         edge_dim=5,
         heads=4,
         dropout=0.2,
+        lstm_layers=2,
+        bidirectional=True,
     ):
         super().__init__()
 
-        # --- Temporal encoder ---
+        self.bidirectional = bidirectional
+        lstm_out_dim = lstm_hidden * 2 if bidirectional else lstm_hidden
+
+        # Temporal encoder
         self.lstm = nn.LSTM(
             input_size=in_feats,
             hidden_size=lstm_hidden,
+            num_layers=lstm_layers,
+            dropout=dropout if lstm_layers > 1 else 0.0,
             batch_first=True,
+            bidirectional=bidirectional,
         )
 
-        # --- Graph layers ---
+        # Temporal attention over LSTM output
+        self.temporal_attn = nn.Sequential(
+            nn.Linear(lstm_out_dim, lstm_out_dim // 2),
+            nn.Tanh(),
+            nn.Linear(lstm_out_dim // 2, 1),
+        )
+
+        # Skip connection
+        self.skip = nn.Linear(lstm_out_dim, gat_hidden)
+
+        # Graph layers
         self.gat1 = GATConv(
-            lstm_hidden,
+            lstm_out_dim,
             gat_hidden,
             heads=heads,
             edge_dim=edge_dim,
@@ -41,7 +59,11 @@ class GAT_LSTM(nn.Module):
             dropout=dropout,
         )
 
-        # --- Classifier ---
+        # Batch Normalizations
+        self.bn1 = nn.BatchNorm1d(gat_hidden * heads)
+        self.bn2 = nn.BatchNorm1d(gat_hidden)
+
+        # Classifier
         self.mlp = nn.Sequential(
             nn.Linear(gat_hidden, 32),
             nn.ReLU(),
@@ -54,18 +76,29 @@ class GAT_LSTM(nn.Module):
         x: (N, W, F)
         """
 
-        # --- LSTM ---
+        # LSTM
         lstm_out, _ = self.lstm(x)         # (N, W, H)
-        h = lstm_out[:, -1, :]             # (N, H)
+        
+        # Temporal attention
+        attn_scores = self.temporal_attn(lstm_out)  # (N, W, 1)
+        attn_weights = torch.softmax(attn_scores, dim=1)
+        h = (lstm_out * attn_weights).sum(dim=1)  # (N, H * 2 if bidirectional else H)
 
-        # --- GAT ---
+        h_skip = self.skip(h)  # (N, gat_hidden)
+
+        # GAT
         h = self.gat1(h, edge_index, edge_attr)
+        h = self.bn1(h)
         h = F.elu(h)
 
         h = self.gat2(h, edge_index, edge_attr)
+        h = self.bn2(h)
         h = F.elu(h)
 
-        # --- Output ---
+        # Recover residual
+        h = h + h_skip  # (N, gat_hidden)
+
+        # Output
         out = self.mlp(h)
 
         return out

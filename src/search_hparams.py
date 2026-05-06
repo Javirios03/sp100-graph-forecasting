@@ -4,8 +4,8 @@ from pathlib import Path
 import json
 
 GRAPH_TYPES = ["js", "corr"]
-LR_VALUES = [5e-4, 8e-4, 2.5e-3]
-WD_VALUES = [1e-4]
+LR_VALUES = [5e-4, 8e-4, 1e-3]
+WD_VALUES = [0, 1e-4]
 EPOCHS_VALUES = [80]
 LSTM_HIDDEN = [64, 128]
 GAT_HIDDEN = [64, 128]
