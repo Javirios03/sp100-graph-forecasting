@@ -101,6 +101,8 @@ The computation of the hidden state \(h_u^{(l+1)}\) for each node \(u\) in the G
 
 \section{Method}
 
+\subsection{Experimental Setup}
+
 The data used in this project consists of the historical stock prices of the companies included in the S\&P 100 index, along with relevant financial indicators, depending on the specific model. We use a set of 10 features for each stock (excluding Ticker, Date and the Class label). The complete list of features can be found in the Appendix \ref{appendix:dataset_details}, but, in general, they can be categorized into three groups:
 \begin{itemize}
     \item \textbf{Price-based features}: such as the adjusted closing price, daily log return, and future weekly log return (used to define the class labels).
@@ -108,11 +110,12 @@ The data used in this project consists of the historical stock prices of the com
     \item \textbf{Technical indicators}: such as moving averages, relative strength index (RSI), and rolling volatility.
 \end{itemize}
 
-In addition to this, for the LSTM model, we include the sequence of the past 20 days of the above features as input, while for the GNN model, we construct two different graph structures based on the following relationships between stocks:
+In addition to this, for the LSTM model, we include the sequence of the past 20 days of the above features as input, while for the GNN model, we construct two different graph structures based on the following relationships between stocks. The following is a summary of these relationships, but a deeper description of the computation of the graph structure can be found in the Appendix \ref{appendix:graph_computation}:
 \begin{itemize}
     \item A correlation graph, where each stock is connected to its top-$k$ most correlated neighbors using training-set stock returns, with additional sector-similarity edges.
     \item A distributional-similarity graph, where each stock is connected to its top-$k$ closest neighbors according to the Jensen-Shannon divergence between return distributions, with additional sector-similarity edges.
 \end{itemize}
+We construct these two \textbf{static} graph structures using only the training data, to avoid temporal leakage.
 
 All data was obtained from Yahoo Finance using the \texttt{yfinance} Python library, for the period between January 4, 2021 and December 31, 2025. The choice of this period is motivated by two main reasons: (i) 5 years is a common time frame used in the literature for stock forecasting, as it provides a good balance between the amount of data available for training and the relevance of the data (as older data may not be as relevant for forecasting future stock movements), and (ii) it avoids, at least theoretically, the impact of the COVID-19 pandemic on the stock market, which introduced a significant amount of noise and structural changes in the market that could have affected the performance of the models \footnote{After careful analysis, we assumed that the turmoil caused by the COVID-19 pandemic in the stock market had a significant impact until the end of 2020, and that, from January 2021 onwards, the market had stabilized enough for the data to be considered as not significantly affected by the pandemic.}.
 
@@ -134,7 +137,6 @@ In order to obtain the information that we are to feed into our models, we follo
 \end{itemize}
 
 These preprocessing steps are implemented as a reproducible pipeline that can be executed from the repository root with \texttt{uv run python -m src.data.run\_pipeline}.
-
 
 \subsection{Models and Hyperparameters}
 
@@ -160,7 +162,53 @@ The architectures of our models are as follows:
 
 \section{Results and Discussion}
 
+\subsection{Quantitative Results}
+
+Training and evaluation of the models is implemented in a modular way that can be executed from the repository root with \texttt{uv run python -m src.run\_experiments}, and the main hyperparameters can be configured in \texttt{config.py}. We will first present the Training curves for the three variants \ref{fig:training_curves}. We don't include the Random Forest curves as it is fitted in a single step and doesn't follow the same training procedure as the other models. After this, we will present the final test scores for all models and discuss the results.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/training_curves_row.png}
+    \caption{Training curves for the three variants. We can observe that the LSTM was cut short at the 10-epoch mark, since it didn't show any improvement in the validation macro-F1. On the other hand, both GNN variants improved mainly in the loss, while the validation macro-F1 remained rather stagnant. The JS-based GNN shows a slightly better performance than the correlation-based one. Best checkpoints are highlighted with a circle for each model.}
+    \label{fig:training_curves}
+\end{figure}
+
+From the training curves, we can observe several things:
+\begin{itemize}
+    \item The LSTM doesn't perform well, and isn't expressive enough (our hypothesis) to capture the relationships between stocks, so training doesn't yield any improvement in the validation macro-F1, and it is cut short early on.
+    \item Both GNN variants seem to have their performance bounded by the non-stationarity and noisiness of the data. Even though their training loss steadily improves, their validation macro-F1 follows a really noisy trajectory, being rather constant from the epoch 80 onwards. As we will see in the following illustration \ref{fig:model_comparison}, this isn't so clearly a sign of overfitting but rather that the model isn't able to capture the underlying relationships in the data.
+\end{itemize}
+
+% Incluir tabla con los resultados finales de los modelos, incluyendo el Random Forest, y discutir los resultados. 
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/model_comparison_row.png}
+    \caption{Comparison of all models' performance. Validation and Test macro-F1 on the left, and Test F1 divided by the class distribution on the right.}
+    \label{fig:model_comparison}
+\end{figure}
+
+\subsection{Qualitative Analysis}
+
+In addition to the conclusions that we can derive from the different metrics, we provide, in the following paragraphs, an analysis on the relative performance of the models depending on the class. In order to do so, we include in Figure \ref{fig:class_comparison} the Confusion Matrices for the best checkpoints of each model, and we analyze the performance of the models depending on the class.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/confusion_matrices_2x2.png}
+    \caption{Confusion Matrices for the best checkpoints of each model.}
+    \label{fig:class_comparison}
+\end{figure}
+
 \section{Conclusions and Future Work}
+
+Points to explain:
+
+\begin{itemize}
+    \item Are the inductive biases introduced by the GNN architecture beneficial for forecasting stock movements? This is, even though we as humans may understand indeces as graphs, imposing this structure on the model may not be beneficial.
+    \item How does this relate to a sort of incorrect reward shaping, similar to Reinforcement Learning? By forcing the model to be invariant to certain symmetries, we may be forbidding it to pursue different strategies that could be more effective.
+    \item Discuss the limitations of our approach and why it may not actually shed a lot of light on the question of whether graph geometry is beneficial for stock forecasting, connecting with the insights of \cite{limitations_of_standard_gnn_stock_prediction}.
+    \item Discuss how adding real-time information (by means, for example, of using LLMs paired with the GNN to extract information from news articles or social media) could help the model to capture important relationships between stocks, such as introduced by \cite{chatgpt_gnn_stock_prediction}.
+\end{itemize}
 
 \newpage
 
@@ -200,7 +248,6 @@ In order to complete the project, we used the following AI tools:
                   \item Adjusted closing price
                   \item Daily Log Return: $\log\left(\frac{P_t}{P_{t-1}}\right)$, where $P_t$ is the adjusted closing price at time $t$.
                   \item Future Weekly Log Return: $\sum_{i=1}^{5}\log\left(\frac{P_{t+i}}{P_{t+i-1}}\right)$, used only to define the prediction target 5 trading days ahead.
-                        % Explicar más de cómo obtenemos la label en la siguiente sección
                   \item Class label: a categorical variable indicating the direction of the stock price movement (up, neutral, down), defined in terms of the sign of the future Weekly Log Return.
               \end{itemize}
         \item Volume:
@@ -221,6 +268,31 @@ In order to complete the project, we used the following AI tools:
                   \item Market Cap: a continuous variable indicating the market capitalization of the company (in dollars).
               \end{itemize}
     \end{enumerate}
+
+    \section{Computation of the Graph Structure}
+    \label{appendix:graph_computation}
+
+    Constructing the graphs implied two steps: The first one, common to both graphs, was to connect those stocks belonging to the same market sector. To avoid over-connectivity, we only connect each node to a maximum of 5 neighbors. The second step was to compute the specific relationships between stocks for each graph, which we describe below:
+    \begin{itemize}
+        \item \textbf{Correlation graph}: We first compute the Pearson correlation coefficient between the daily log returns of each pair of stocks using the training set data. This statistic can be expressed, mathematically, as:
+              \begin{equation}
+                  r_{xy} = \frac{\sum_{i=1}^{n} (x_i - \bar{x})(y_i - \bar{y})}{\sqrt{\sum_{i=1}^{n} (x_i - \bar{x})^2} \sqrt{\sum_{i=1}^{n} (y_i - \bar{y})^2}}
+              \end{equation}
+              where $x_i$ and $y_i$ are the daily log returns of stocks $x$ and $y$ at time $i$, and $\bar{x}$ and $\bar{y}$ are their respective means. We then connect each stock to its top-$k$ most correlated neighbors (highest positive magnitude), with $k$ set to 5 in our experiments.
+
+              Then, the edge weights are defined as the normalized correlation coefficients, so that they lie in the range [0, 1]. Thus, most of them lie in the range [0.5, 1], as we only consider the top-5 most correlated neighbors for each stock.
+
+              This relationship is added by means of a double-headed edge, since the GNN uses directed edges but the correlation relationship is symmetric.
+        \item \textbf{Jensen-Shannon divergence graph}: This can be understood as going one step further in the same direction as the correlation graph. Instead of summarizing the relationship between two given stocks purely by the point-wise correlation between their returns, we can compare the entire distribution of returns for each stock and connect those stocks with similar return distributions.
+
+              To do so, we first compute the daily log returns for each stock and create a histogram of these returns (with 30 bins). All histograms use the same bin edges, defined by the minimum and maximum log returns across all stocks in the training set. After representing these bins, we normalize each one so that they can be interpreted as probability distributions.
+
+              Then, we compute the Jensen-Shannon divergence between the return distributions of each pair of stocks, which can be expressed as:
+              \begin{equation}
+                  JSD(P || Q) = \frac{1}{2} D_{KL}(P || M) + \frac{1}{2} D_{KL}(Q || M)
+              \end{equation}
+              where $P$ and $Q$ are the return distributions of two stocks, $M = \frac{1}{2}(P + Q)$ is the average distribution, and $D_{KL}$ is the Kullback-Leibler divergence. After computing this for every pair of stocks, we connect each individual stock to its top-$k$ closest neighbors (lowest divergence), with $k$ set to 5 in our experiments. The edge weights are defined as the normalized inverse of the Jensen-Shannon divergence, so that they lie in the range [0, 1], with higher values indicating more similar return distributions (less distance between them).
+    \end{itemize}
 
     \section{Important Details}
 
