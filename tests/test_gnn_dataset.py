@@ -79,9 +79,9 @@ def test_js_edges_valid_and_weight_distance_ranges():
     assert js["weight"].min() >= 0.85 and js["weight"].max() <= 1.0
     assert np.allclose(sect["weight"].unique(), 1.0)
 
-    # Distancias JS (no NaN solo en js_divergence)
+    # Distancias JS y de sector en el mismo espacio que edge_attr
     assert js["distance"].between(0.0, 0.2).all()
-    assert sect["distance"].isna().all()
+    assert np.allclose(sect["distance"].unique(), 0.0)
 
 def test_gnn_snapshots_and_tensors_shapes():
     idx = pd.read_parquet(PROCESSED_DIR / "gnn_snapshots_index.parquet")

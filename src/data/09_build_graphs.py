@@ -4,7 +4,7 @@ from scipy.spatial.distance import jensenshannon
 import torch
 
 from src.utils import PROCESSED_DIR
-from config import TOP_K_CORR, TOP_K_DIV, N_BINS
+from config import MAX_SECTOR_EDGES, TOP_K_CORR, TOP_K_DIV, N_BINS
 
 
 def validate_input(df: pd.DataFrame) -> None:
@@ -36,16 +36,18 @@ def build_sector_edges(meta: pd.DataFrame, max_edges_per_node: int = 5) -> pd.Da
     rows = []
 
     for sector, group in meta.groupby("sector"):
-        nodes = group["node_id"].tolist()
+        nodes = group[["node_id", "ticker"]].to_dict("records")
 
-        for i in nodes:
-            neighbors = [j for j in nodes if j != i]
+        for node in nodes:
+            neighbors = [other for other in nodes if other["node_id"] != node["node_id"]]
             sampled = neighbors[:max_edges_per_node]
 
-            for j in sampled:
+            for neighbor in sampled:
                 rows.append({
-                    "src": i,
-                    "dst": j,
+                    "src": node["node_id"],
+                    "dst": neighbor["node_id"],
+                    "src_ticker": node["ticker"],
+                    "dst_ticker": neighbor["ticker"],
                     "weight": 1.0,
                     "distance": 0.0,
                     "edge_type": "sector",
@@ -107,6 +109,8 @@ def build_corr_edges(train_df: pd.DataFrame, mapping: pd.DataFrame, top_k: int) 
             rows.append({
                 "src": src,
                 "dst": dst,
+                "src_ticker": ticker,
+                "dst_ticker": nbr_ticker,
                 "weight": norm_weight,
                 "distance": distance,
                 "edge_type": "correlation",
@@ -115,6 +119,8 @@ def build_corr_edges(train_df: pd.DataFrame, mapping: pd.DataFrame, top_k: int) 
             rows.append({
                 "src": dst,
                 "dst": src,
+                "src_ticker": nbr_ticker,
+                "dst_ticker": ticker,
                 "weight": norm_weight,
                 "distance": distance,
                 "edge_type": "correlation",
@@ -211,6 +217,8 @@ def build_js_edges(train_df: pd.DataFrame, mapping: pd.DataFrame, top_k: int, n_
             rows.append({
                 "src": src,
                 "dst": dst,
+                "src_ticker": ticker,
+                "dst_ticker": nbr_ticker,
                 "weight": sim,
                 "distance": dist,
                 "edge_type": "js_divergence",
@@ -219,6 +227,8 @@ def build_js_edges(train_df: pd.DataFrame, mapping: pd.DataFrame, top_k: int, n_
             rows.append({
                 "src": dst,
                 "dst": src,
+                "src_ticker": nbr_ticker,
+                "dst_ticker": ticker,
                 "weight": sim,
                 "distance": dist,
                 "edge_type": "js_divergence",
@@ -292,7 +302,7 @@ def main():
     # Graphs
     corr_edges = build_corr_edges(train_df, mapping, TOP_K_CORR)
     js_edges = build_js_edges(train_df, mapping, TOP_K_DIV, N_BINS)
-    sector_edges = build_sector_edges(meta)
+    sector_edges = build_sector_edges(meta, max_edges_per_node=MAX_SECTOR_EDGES)
 
     # Combine all edges
     corr_edges = pd.concat([corr_edges, sector_edges], ignore_index=True)
