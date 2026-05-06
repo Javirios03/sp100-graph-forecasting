@@ -62,7 +62,11 @@ def load_tensorboard_test_f1(run_dir):
 def infer_model_name(result, fallback_name):
     model_type = result.get("model_type")
     if model_type:
-        return str(model_type).upper()
+        model_labels = {
+            "random_forest": "Random Forest",
+            "lstm": "LSTM",
+        }
+        return model_labels.get(str(model_type), str(model_type).replace("_", " ").title())
 
     graph_type = result.get("graph_type")
     if graph_type:
@@ -71,6 +75,16 @@ def infer_model_name(result, fallback_name):
 
     name = result.get("experiment", fallback_name)
     return name.replace("_", " ").title()
+
+
+def model_order_key(model_name):
+    order = {
+        "Random Forest": 0,
+        "LSTM": 1,
+        "GNN (Correlation)": 2,
+        "GNN (JS)": 3,
+    }
+    return order.get(model_name, 99)
 
 
 def normalize_result(result, fallback_name):
@@ -130,6 +144,17 @@ def save_current_figure(output_dir, stem):
     plt.savefig(png_path, dpi=300, bbox_inches="tight")
     plt.savefig(pdf_path, bbox_inches="tight")
     plt.close()
+    return png_path, pdf_path
+
+
+def save_figure(fig, output_dir, stem):
+    output_dir.mkdir(parents=True, exist_ok=True)
+    png_path = output_dir / f"{stem}.png"
+    pdf_path = output_dir / f"{stem}.pdf"
+    fig.tight_layout()
+    fig.savefig(png_path, dpi=300, bbox_inches="tight")
+    fig.savefig(pdf_path, bbox_inches="tight")
+    plt.close(fig)
     return png_path, pdf_path
 
 
@@ -204,7 +229,10 @@ def build_summary_frame(results):
                 "test_f1": result["test_f1"],
             }
         )
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df = df.sort_values("model", key=lambda s: s.map(model_order_key)).reset_index(drop=True)
+    return df
 
 
 def plot_f1_bars(summary_df, output_dir):
@@ -297,6 +325,167 @@ def plot_confusion_matrices(results, output_dir):
     return saved
 
 
+def plot_confusion_matrices_grid(results, output_dir):
+    results_with_cm = [
+        result
+        for result in results
+        if result.get("metrics", {}).get("test", {}).get("confusion_matrix")
+    ]
+    by_model = {result["model"]: result for result in results_with_cm}
+    ordered_models = ["Random Forest", "LSTM", "GNN (Correlation)", "GNN (JS)"]
+    ordered_results = [by_model[model] for model in ordered_models if model in by_model]
+    if len(ordered_results) < 2:
+        return []
+
+    fig, axes = plt.subplots(2, 2, figsize=(8.6, 7.2))
+    axes = axes.ravel()
+    for ax in axes:
+        ax.axis("off")
+
+    for ax, result in zip(axes, ordered_results):
+        test_metrics = result["metrics"]["test"]
+        labels = test_metrics.get("labels", ["down", "neutral", "up"])
+        matrix = pd.DataFrame(
+            test_metrics["confusion_matrix"],
+            index=[label.title() for label in labels],
+            columns=[label.title() for label in labels],
+        )
+        ax.axis("on")
+        sns.heatmap(matrix, annot=True, fmt="d", cmap="Blues", cbar=False, ax=ax)
+        ax.set_title(result["model"])
+        ax.set_xlabel("Predicted")
+        ax.set_ylabel("True")
+
+    fig.suptitle("Test confusion matrices", fontsize=14, y=1.02)
+    return save_figure(fig, output_dir, "confusion_matrices_2x2")
+
+
+def plot_training_curves_row(history_df, output_dir):
+    if history_df.empty:
+        return []
+
+    df = history_df.copy()
+    df = df.sort_values("model", key=lambda s: s.map(model_order_key))
+    has_loss = df["train_loss"].notna().any()
+    has_val = df["val_f1"].notna().any()
+    if not has_loss and not has_val:
+        return []
+
+    fig, axes = plt.subplots(1, 2, figsize=(11.0, 4.2))
+
+    if has_loss:
+        sns.lineplot(
+            data=df.dropna(subset=["train_loss"]),
+            x="epoch",
+            y="train_loss",
+            hue="model",
+            linewidth=2.0,
+            ax=axes[0],
+        )
+        axes[0].set_title("Training loss")
+        axes[0].set_xlabel("Epoch")
+        axes[0].set_ylabel("Loss")
+        axes[0].grid(alpha=0.25)
+    else:
+        axes[0].axis("off")
+
+    if has_val:
+        val_df = df.dropna(subset=["val_f1"])
+        sns.lineplot(
+            data=val_df,
+            x="epoch",
+            y="val_f1",
+            hue="model",
+            linewidth=2.0,
+            ax=axes[1],
+        )
+        best_rows = val_df.loc[val_df.groupby("model")["val_f1"].idxmax()]
+        sns.scatterplot(
+            data=best_rows,
+            x="epoch",
+            y="val_f1",
+            hue="model",
+            legend=False,
+            s=70,
+            edgecolor="black",
+            linewidth=0.6,
+            ax=axes[1],
+        )
+        axes[1].set_title("Validation macro-F1")
+        axes[1].set_xlabel("Epoch")
+        axes[1].set_ylabel("Macro-F1")
+        axes[1].set_ylim(bottom=0)
+        axes[1].grid(alpha=0.25)
+    else:
+        axes[1].axis("off")
+
+    for ax in axes:
+        legend = ax.get_legend()
+        if legend is not None:
+            legend.set_title("")
+
+    return save_figure(fig, output_dir, "training_curves_row")
+
+
+def plot_model_comparison_row(results, summary_df, output_dir):
+    if summary_df.empty:
+        return []
+
+    per_class_rows = []
+    for result in results:
+        test_metrics = result.get("metrics", {}).get("test", {})
+        for class_name, values in test_metrics.get("per_class", {}).items():
+            per_class_rows.append(
+                {
+                    "model": result["model"],
+                    "class": class_name.title(),
+                    "f1": values.get("f1"),
+                }
+            )
+
+    score_df = summary_df.melt(
+        id_vars=["model", "experiment"],
+        value_vars=["best_val_f1", "test_f1"],
+        var_name="metric",
+        value_name="macro_f1",
+    ).dropna(subset=["macro_f1"])
+    if score_df.empty:
+        return []
+
+    score_df["metric"] = score_df["metric"].map(
+        {"best_val_f1": "Best validation F1", "test_f1": "Test F1"}
+    )
+    score_df = score_df.sort_values("model", key=lambda s: s.map(model_order_key))
+
+    fig, axes = plt.subplots(1, 2, figsize=(11.2, 4.4))
+
+    ax = sns.barplot(data=score_df, x="model", y="macro_f1", hue="metric", ax=axes[0])
+    for container in ax.containers:
+        ax.bar_label(container, fmt="%.3f", padding=2, fontsize=8)
+    axes[0].set_title("Overall macro-F1")
+    axes[0].set_xlabel("")
+    axes[0].set_ylabel("Macro-F1")
+    axes[0].tick_params(axis="x", rotation=18)
+    axes[0].set_ylim(0, max(0.45, score_df["macro_f1"].max() * 1.23))
+    axes[0].grid(axis="y", alpha=0.25)
+    axes[0].legend(title="")
+
+    per_class_df = pd.DataFrame(per_class_rows).dropna() if per_class_rows else pd.DataFrame()
+    if not per_class_df.empty:
+        per_class_df = per_class_df.sort_values("model", key=lambda s: s.map(model_order_key))
+        ax = sns.barplot(data=per_class_df, x="class", y="f1", hue="model", ax=axes[1])
+        axes[1].set_title("Test F1 by class")
+        axes[1].set_xlabel("Class")
+        axes[1].set_ylabel("F1")
+        axes[1].set_ylim(0, max(0.45, per_class_df["f1"].max() * 1.23))
+        axes[1].grid(axis="y", alpha=0.25)
+        axes[1].legend(title="", fontsize=8)
+    else:
+        axes[1].axis("off")
+
+    return save_figure(fig, output_dir, "model_comparison_row")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate report figures from result JSONs and TensorBoard runs.")
     parser.add_argument("--results-dir", type=Path, default=DEFAULT_RESULTS_DIR)
@@ -330,6 +519,9 @@ def main():
         plot_best_epoch(summary_df, args.output_dir),
         plot_per_class_f1(results, args.output_dir),
         plot_confusion_matrices(results, args.output_dir),
+        plot_confusion_matrices_grid(results, args.output_dir),
+        plot_training_curves_row(history_df, args.output_dir),
+        plot_model_comparison_row(results, summary_df, args.output_dir),
     ]:
         saved_paths.extend(paths)
 
