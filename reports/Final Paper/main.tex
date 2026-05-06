@@ -94,20 +94,20 @@ The data used in this project consists of the historical stock prices of the com
               \item Date
               \item Adjusted closing price
               \item Daily Log Return: $\log\left(\frac{P_t}{P_{t-1}}\right)$, where $P_t$ is the adjusted closing price at time $t$.
-              \item Weekly Log Return: $\log\left(\frac{P_t}{P_{t-5}}\right)$, where $P_{t-5}$ is the adjusted closing price 5 trading days before time $t$ (since stocks are not traded on weekends).
+              \item Future Weekly Log Return: $\sum_{i=1}^{5}\log\left(\frac{P_{t+i}}{P_{t+i-1}}\right)$, used only to define the prediction target 5 trading days ahead.
                     % Explicar más de cómo obtenemos la label en la siguiente sección
-              \item Class label: a categorical variable indicating the direction of the stock price movement (up, neutral, down), defined in terms of the sign of the Weekly Log Return.
+              \item Class label: a categorical variable indicating the direction of the stock price movement (up, neutral, down), defined in terms of the sign of the future Weekly Log Return.
           \end{itemize}
     \item Volume:
           \begin{itemize}
               \item Daily trading volume
-              \item Normalized trading volume: the daily trading volume normalized by the average trading volume of the stock over the entire period ($\frac{V_t - \mu_V}{\sigma_V}$, where $V_t$ is the trading volume at time $t$, $\mu_V$ is the average trading volume, and $\sigma_V$ is the standard deviation of the trading volume).
+              \item Normalized trading volume: the daily trading volume divided by the 20-day rolling average trading volume of the same stock.
           \end{itemize}
     \item Technical Indicators:
           \begin{itemize}
               \item Weekly Moving Average (5MA): the average of the adjusted closing price over the past 5 trading days.
               \item Monthly Moving Average (20MA): the average of the adjusted closing price over the past 20 trading days.
-              \item Relative Strength Index (RSI): a momentum oscillator that measures the speed and change of price movements, calculated as $RSI = 100 - \frac{100}{1 + RS}$, where $RS$ is the average gain of up periods divided by the average loss of down periods over a specified time frame (10 trading days in our case).
+              \item Relative Strength Index (RSI): a momentum oscillator that measures the speed and change of price movements, calculated as $RSI = 100 - \frac{100}{1 + RS}$, where $RS$ is the average gain of up periods divided by the average loss of down periods over a specified time frame (14 trading days in our case).
               \item Rolling Volatility: the standard deviation of the daily log returns over a rolling window of 20 trading days.
           \end{itemize}
     \item Structural Information:
@@ -119,8 +119,8 @@ The data used in this project consists of the historical stock prices of the com
 
 In addition to this, for the LSTM model, we include the sequence of the past 20 days of the above features as input, while for the GNN model, we construct two different graph structures based on the following relationships between stocks:
 \begin{itemize}
-    \item Shared market sector AND high correlation between stock returns
-    \item Shared market sector AND low divergence between the distributions of stock returns (measured using the Jensen-Shannon divergence)
+    \item A correlation graph, where each stock is connected to its top-$k$ most correlated neighbors using training-set stock returns, with additional sector-similarity edges.
+    \item A distributional-similarity graph, where each stock is connected to its top-$k$ closest neighbors according to the Jensen-Shannon divergence between return distributions, with additional sector-similarity edges.
 \end{itemize}
 
 All data was obtained from Yahoo Finance using the \texttt{yfinance} Python library, for the period between January 4, 2021 and December 31, 2025. The choice of this period is motivated by two main reasons: (i) 5 years is a common time frame used in the literature for stock forecasting, as it provides a good balance between the amount of data available for training and the relevance of the data (as older data may not be as relevant for forecasting future stock movements), and (ii) it avoids, at least theoretically, the impact of the COVID-19 pandemic on the stock market, which introduced a significant amount of noise and structural changes in the market that could have affected the performance of the models \footnote{After careful analysis, we assumed that the turmoil caused by the COVID-19 pandemic in the stock market had a significant impact until the end of 2020, and that, from January 2021 onwards, the market had stabilized enough for the data to be considered as not significantly affected by the pandemic.}.
@@ -130,20 +130,24 @@ All data was obtained from Yahoo Finance using the \texttt{yfinance} Python libr
 In order to obtain the information that we are to feed into our models, we followed the following steps:
 \begin{itemize}
     \item We obtained the list of stocks in the S\&P 100 index, along with their corresponding ticker symbols. In specific, we filtered this list to the stocks that have been in the index for the entire period of time considered (January 4, 2021 to December 31, 2025), which resulted in a total of 88 stocks. Even though this filtering step reduces the number of stocks we are considering, we consider the reduction small enough to not significantly affect the performance of the models, while it allows us to avoid dealing with structural changes in the index.
-    \item For each stock, we obtained the data mentioned in the previous section, computing the necessary features. As to the labels, we decided to define a threshold $\epsilon$ on the Weekly Log Return to determine the class labels, in order to avoid labeling small fluctuations as significant movements. Specifically, we defined the class labels as follows:
+    \item For each stock, we obtained the data mentioned in the previous section, computing the necessary features. As to the labels, we decided to define a threshold $\epsilon$ on the future Weekly Log Return to determine the class labels, in order to avoid labeling small fluctuations as significant movements. Specifically, we defined the class labels as follows:
           \begin{itemize}
-              \item Up: if the Weekly Log Return is greater than $\epsilon$
-              \item Neutral: if the Weekly Log Return is between $-\epsilon$ and $\epsilon$
-              \item Down: if the Weekly Log Return is less than $-\epsilon$
+              \item Up: if the future Weekly Log Return is greater than $\epsilon$
+              \item Neutral: if the future Weekly Log Return is between $-\epsilon$ and $\epsilon$
+              \item Down: if the future Weekly Log Return is less than $-\epsilon$
           \end{itemize}
           We set $\epsilon$ to 0.01, which corresponds to a 1\% change in the stock price over a week. Though this threshold is rather arbitrary, it yields a good balance between the number of samples in each class, as mentioned in \ref{appendix:class_distribution}.
-    \item We split the data into training, validation, and test sets, using a chronological split to avoid data leakage. Specifically, we use ratios of 60\%, 20\%, and 20\% for the training, validation, and test sets, respectively. Though this may be a somewhat aggressive split (keeping only 60\% of the data for training), it allows the splits to reflect similar time frames (dividing the dataset into 3, 1, and 1 years, respectively) and, thus, to be more comparable between them.
+    \item We split the data into training, validation, and test sets, using a chronological split to avoid data leakage. Specifically, training data ends on December 31, 2023, validation data ends on December 31, 2024, and the remaining observations are used for testing. This divides the dataset into roughly 3, 1, and 1 years, respectively, and makes the splits comparable across models.
 
-          This is done in different ways for the different models, though. For the Random Forest, we simply split the data according to the specified ratios and create a catabolic variable in the tabular dataset to indicate the split to which each snapshot belongs. For the LSTM, we create sequences of 20 days for each stock and split these sequences according to the specified ratios. For the GNN, we create the graph structure using the data from the training set, and then split the snapshots of the graph (this is, every node and edge at a given time step).
+          This is done in different ways for the different models, though. For the Random Forest, we assign the split in the tabular dataset according to the date of each sample. For the LSTM, we create sequences of 20 days for each stock and assign their split according to the reference date of each sequence. For the GNN, we create the graph structure using the data from the training set, and then split the snapshots of the graph (this is, every node and edge at a given time step).
 \end{itemize}
+
+These preprocessing steps are implemented as a reproducible pipeline that can be executed from the repository root with \texttt{uv run python -m src.data.run\_pipeline}.
 
 
 \subsection{Models and Hyperparameters}
+
+The GNN experiments are trained using AdamW with weight decay, cross-entropy loss, gradient clipping, a fixed random seed, and early stopping based on validation macro-F1. The best checkpoint according to validation macro-F1 is saved during training and reloaded before computing the final test score.
 
 \section{Results and Discussion}
 
