@@ -60,17 +60,15 @@ Final Project --- Geometric Deep Learning \\
 
 Stock forecasting is a challenging task that, due to its economic implications, has been an attractive area of research for decades. In specific, AI and machine learning techniques have been widely applied to this problem, with varying degrees of success. Despite the advances in the matter, many current approaches are limited to using technical analysis to capture historical trends of each stock price. In this paper, we explore the potential benefits of incorporating graph geometry into stock forecasting models, specifically focusing on the S\&P 100 index. We decide to focus on this subset of the stock market to reduce the complexity of the problem and to be able to focus on the relationships between the stocks, which is where we expect graph geometry to provide the most value.
 
-In indeces such as the S\&P 100, there are important relationships between individual stocks, such as shared market sectors or financial indicators, that may not be fully captured by traditional forecasting models and that could be better modeled using graph-based approaches. By representing the stocks as nodes in a graph and their relationships as edges, we can leverage geometric deep learning techniques to capture these interactions and, potentially, improve forecasting performance
+In indeces such as the S\&P 100, there are important relationships between individual stocks, such as shared market sectors or financial indicators, that may not be fully captured by traditional forecasting models and that could be better modeled using graph-based approaches. By representing the stocks as nodes in a graph and their relationships as edges, we can leverage geometric deep learning techniques to capture these interactions and, potentially, improve forecasting performance.
 
-In order to evaluate the effectiveness of graph geometry in stock forecasting, we first implement two baseline models: a Random Forest and an LSTM. These models will serve as benchmarks to compare against a Graph Neural Network (GNN). The choice of these architectures is motivated by their widespread use in time series forecasting and their ability to capture different aspects of the data. The Random Forest is a powerful ensemble method that can capture non-linear relationships (and, given a sufficiently informative feature set, obtain performance comparable to more complex models), while the LSTM is a type of recurrent neural network that is particularly well-suited for sequential data (in this case, the temporal evolution of the index). The GNN, on the other hand, is designed to capture the relationships between stocks by modeling them as a graph, which is where we expect to see the most significant improvements in forecasting performance.
-
-We model the relationships between stocks using a graph structure, where nodes represent individual stocks and edges represent relationships, mainly shared market sectors, correlations between stock returns, and divergences in the returns' distributions. The problem is thus framed as a node classification task, in which we aim to predict the direction of the stock price movement (up, neutral, or down) for each stock in the index within a given time frame. We evaluate the performance of the models using standard metrics such as accuracy, precision, recall, and F1-score, and we analyze the results to understand the impact of incorporating graph geometry into the forecasting process.
-
+To evaluate this idea, we implement two baseline models, a Random Forest and an LSTM, and compare them against a Graph Neural Network (GNN). These baselines are chosen because they are widely used in time-series forecasting and capture different aspects of the problem: the Random Forest exploits non-linear feature interactions, while the LSTM models temporal dependencies. We frame the task as a node classification problem, where the goal is to predict whether each stock will move up, remain neutral, or move down over a given time window. We evaluate the models using accuracy, precision, recall, and F1-score, and analyze how the inclusion of graph structure affects forecasting performance.
+\newpage
 \section{Related Work}
 
-Financial forecasting surged as a research area in the late 19th century, with the introduction of statistical methods (such as those developed by Irving Fisher) to analyze market trends. It wasn't, though, until the mid-20th century that advances in computing power allowed for the application of more complex models. All in all, we can roughly divide the evolution of financial forecasting into three main eras: the pre-computing era, the statistical era, and the machine learning era. The pre-computing era was characterized by the use of simple heuristics and technical analysis to predict stock prices.
+Financial forecasting surged as a research area in the late 19th century, with the introduction of statistical methods (such as those developed by Irving Fisher) to analyze market trends. It wasn't, though, until the mid-20th century that advances in computing power allowed for the application of more complex models. All in all, we can roughly divide the evolution of financial forecasting into three main eras: the pre-computing era, the statistical era, and the machine learning era. The pre-computing era relied on simple heuristics and technical analysis.
 
-The statistical era saw the introduction of parametric models that, while much more expressive than the previous heuristics, were based upon explicit assumptions about the underlying data distribution \cite{traditional_dl_stock_prediction}. For example, ARIMA models the conditional mean of the time series as a linear function of past observations and errors, while GARCH models the conditional variance as a function of past squared errors and variances.
+The statistical era saw the introduction of parametric models that, while being more expressive than heuristics, were based upon explicit assumptions about the underlying data distribution \cite{traditional_dl_stock_prediction}. For example, ARIMA models the conditional mean of the time series as a linear function of past observations and errors, while GARCH models the conditional variance as a function of past squared errors and variances.
 
 The machine learning era, currently under process, is characterized by the use of non-parametric models that can capture complex relationships in the data without making strong assumptions about the underlying distribution. The last decades have seen a surge in implementations of machine learning models for financial forecasting, including general-purpose models such as Random Forests \cite{rf_stock_prediction} and time-series specific models such as LSTMs \cite{stock_prediction_lstm} and Gateted Recurrent Units (GRUs) \cite{rnn_gru_lstm_comparison}. With the introduction of the Transformer architecture \cite{attention_is_all_you_need}, attention-based architectures surged as a promising alternative to recurrent models, as they allow for long-range dependencies to be captured more effectively and in a more parallelizable way. In the specific context of stock forecasting, attention-based models have been shown to outperform recurrent models in certain settings \cite{attention_transformers_stock_prediction}.
 
@@ -103,38 +101,12 @@ The computation of the hidden state \(h_u^{(l+1)}\) for each node \(u\) in the G
 
 \section{Method}
 
-\section{Experimental Setup}
-
-The data used in this project consists of the historical stock prices of the companies included in the S\&P 100 index, along with relevant financial indicators, depending on the specific model. We use the following variables, common for all models, as features for each stock:
-\begin{enumerate}
-    \item Identifiers and Basic Information:
-          \begin{itemize}
-              \item Ticker symbol
-              \item Date
-              \item Adjusted closing price
-              \item Daily Log Return: $\log\left(\frac{P_t}{P_{t-1}}\right)$, where $P_t$ is the adjusted closing price at time $t$.
-              \item Future Weekly Log Return: $\sum_{i=1}^{5}\log\left(\frac{P_{t+i}}{P_{t+i-1}}\right)$, used only to define the prediction target 5 trading days ahead.
-                    % Explicar más de cómo obtenemos la label en la siguiente sección
-              \item Class label: a categorical variable indicating the direction of the stock price movement (up, neutral, down), defined in terms of the sign of the future Weekly Log Return.
-          \end{itemize}
-    \item Volume:
-          \begin{itemize}
-              \item Daily trading volume
-              \item Normalized trading volume: the daily trading volume divided by the 20-day rolling average trading volume of the same stock.
-          \end{itemize}
-    \item Technical Indicators:
-          \begin{itemize}
-              \item Weekly Moving Average (5MA): the average of the adjusted closing price over the past 5 trading days.
-              \item Monthly Moving Average (20MA): the average of the adjusted closing price over the past 20 trading days.
-              \item Relative Strength Index (RSI): a momentum oscillator that measures the speed and change of price movements, calculated as $RSI = 100 - \frac{100}{1 + RS}$, where $RS$ is the average gain of up periods divided by the average loss of down periods over a specified time frame (14 trading days in our case).
-              \item Rolling Volatility: the standard deviation of the daily log returns over a rolling window of 20 trading days.
-          \end{itemize}
-    \item Structural Information:
-          \begin{itemize}
-              \item Market sector: a categorical variable indicating the market sector to which the stock belongs (e.g., Technology, Healthcare, Financials, etc.).
-              \item Market Cap: a continuous variable indicating the market capitalization of the company (in dollars).
-          \end{itemize}
-\end{enumerate}
+The data used in this project consists of the historical stock prices of the companies included in the S\&P 100 index, along with relevant financial indicators, depending on the specific model. We use a set of 10 features for each stock (excluding Ticker, Date and the Class label). The complete list of features can be found in the Appendix \ref{appendix:dataset_details}, but, in general, they can be categorized into three groups:
+\begin{itemize}
+    \item \textbf{Price-based features}: such as the adjusted closing price, daily log return, and future weekly log return (used to define the class labels).
+    \item \textbf{Volume-based features}: such as the daily trading volume and the normalized trading volume.
+    \item \textbf{Technical indicators}: such as moving averages, relative strength index (RSI), and rolling volatility.
+\end{itemize}
 
 In addition to this, for the LSTM model, we include the sequence of the past 20 days of the above features as input, while for the GNN model, we construct two different graph structures based on the following relationships between stocks:
 \begin{itemize}
@@ -197,7 +169,7 @@ The architectures of our models are as follows:
 While both of us developed the code together and contributed to the writing of the report, there are certain sections that were implemented primarily by each one of us.
 
 \begin{itemize}
-    \item \textbf{Antonio Lorenzo Díaz Meco}: Code for the 3 models (Random Forest, LSTM, and GNN), and experimental setup. Writing of the Method and Experimental Setup.
+    \item \textbf{Antonio Lorenzo Díaz Meco}: Code for the 3 models (Random Forest, LSTM, and GNN), and experimental setup. Writing of the Method and Experimental Setup. Generation of graph illustrations for results analysis.
     \item \textbf{Javier Ríos Montes}: Code for data preprocessing and Repository structure. Writing of the Introduction, Related Work, Background, Results and Discussion, and Conclusions and Future Work.
 \end{itemize}
 
@@ -215,6 +187,40 @@ In order to complete the project, we used the following AI tools:
 \bibliography{references}
 
 \begin{appendix}
+
+    \section{Dataset Details}
+    \label{appendix:dataset_details}
+
+    The dataset consists of daily observations for each of the 88 stocks in the S\&P 100 index over the period from January 4, 2021 to December 31, 2025. Each observation includes the following identifiers, features, and labels:
+    \begin{enumerate}
+        \item Identifiers and Basic Information:
+              \begin{itemize}
+                  \item Ticker symbol
+                  \item Date
+                  \item Adjusted closing price
+                  \item Daily Log Return: $\log\left(\frac{P_t}{P_{t-1}}\right)$, where $P_t$ is the adjusted closing price at time $t$.
+                  \item Future Weekly Log Return: $\sum_{i=1}^{5}\log\left(\frac{P_{t+i}}{P_{t+i-1}}\right)$, used only to define the prediction target 5 trading days ahead.
+                        % Explicar más de cómo obtenemos la label en la siguiente sección
+                  \item Class label: a categorical variable indicating the direction of the stock price movement (up, neutral, down), defined in terms of the sign of the future Weekly Log Return.
+              \end{itemize}
+        \item Volume:
+              \begin{itemize}
+                  \item Daily trading volume
+                  \item Normalized trading volume: the daily trading volume divided by the 20-day rolling average trading volume of the same stock.
+              \end{itemize}
+        \item Technical Indicators:
+              \begin{itemize}
+                  \item Weekly Moving Average (5MA): the average of the adjusted closing price over the past 5 trading days.
+                  \item Monthly Moving Average (20MA): the average of the adjusted closing price over the past 20 trading days.
+                  \item Relative Strength Index (RSI): a momentum oscillator that measures the speed and change of price movements, calculated as $RSI = 100 - \frac{100}{1 + RS}$, where $RS$ is the average gain of up periods divided by the average loss of down periods over a specified time frame (14 trading days in our case).
+                  \item Rolling Volatility: the standard deviation of the daily log returns over a rolling window of 20 trading days.
+              \end{itemize}
+        \item Structural Information:
+              \begin{itemize}
+                  \item Market sector: a categorical variable indicating the market sector to which the stock belongs (e.g., Technology, Healthcare, Financials, etc.).
+                  \item Market Cap: a continuous variable indicating the market capitalization of the company (in dollars).
+              \end{itemize}
+    \end{enumerate}
 
     \section{Important Details}
 
