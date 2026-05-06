@@ -53,7 +53,7 @@ Final Project --- Geometric Deep Learning \\
 \maketitle
 
 \begin{abstract}
-    Write the abstract here.
+    This final project explores the potential benefits of incorporating graph geometry into stock forecasting models, specifically focusing on the S\&P 100 index. We implement two baseline models, a Random Forest and an LSTM, and compare their performance against a Graph Neural Network (GNN) that captures the relationships between stocks using a graph structure. Beyond evaluating the forecasting performance of the models, we aim to analyze whether graph symmetries might or not be the optimal inductive bias to include in stock forecasting models. Forcing a model to be invariant to certain symmetries may be beneficial in some cases, but it may also limit the model's ability to capture important relationships in the data and, as we hypothesize, incetivize the model to learn spurious relationships that aren't actually present in the data.
 \end{abstract}
 
 \section{Introduction}
@@ -80,7 +80,26 @@ In general, the results in the literature suggest that incorporating graph geome
 
 \section{Background}
 
+Throughout the project, we will be using the following models:
+\begin{itemize}
+    \item \textbf{Random Forest}: an ensemble learning method that constructs a multitude of decision trees during training and outputs the majority class as the prediction. Given a sufficiently informative feature set, Random Forests can capture complex relationships in the data and achieve competitive performance even compared to more complex models.
+    \item \textbf{LSTM (Long Short-Term Memory)}: a type of recurrent neural network that is particularly well-suited for sequential data (and handles long-range dependencies better than its predecessors, such as vanilla RNNs).
+    \item \textbf{GNN (Graph Neural Network)}: a type of neural network designed to operate on graph-structured data. In our case, we will be using a specific architecture that combines an LSTM to capture the temporal evolution of each stock with a GAT (Graph Attention Network)
+\end{itemize}
 
+Focusing on the mathematics behind the GNN, we can describe GAT as a particular case of the more general message-passing framework for GNNs. In this framework, the representation of each node is updated by aggregating information from its neighbors. Specifically, in a GAT layer, the representation of a node $i$ at layer $l+1$ is computed as follows:
+\begin{equation}
+    h_u^{(l+1)} = \sigma\left(\sum_{v \in \mathcal{N}(u)} \alpha_{uv}^{(l)} W^{(l)} h_v^{(l)}\right)
+\end{equation}
+where $h_u^{(l)}$ is the representation of node $u$ at layer $l$, $\mathcal{N}(u)$ is the set of neighbors of node $u$, $W^{(l)}$ is a learnable weight matrix, $\sigma$ is a non-linear activation function (ELU in our case), and $\alpha_{uv}^{(l)}$ is the attention coefficient that determines the importance of node $v$'s features to node $u$ at layer $l$ (learned during training). Thus, it can also be interpreted as a generalization of the Graph Convolutional Network (GCN) layer, with the information from the neighbors being weighted by the attention coefficients instead of being averaged.
+
+These weights are computed, by means of a Neural Network, as:
+\begin{equation}
+    \alpha_{uv}^{(l)} = \frac{\exp\left(\text{LeakyReLU}\left(a^T [W^{(l)} h_u^{(l)} || W^{(l)} h_v^{(l)}]\right)\right)}{\sum_{k \in \mathcal{N}(u)} \exp\left(\text{LeakyReLU}\left(a^T [W^{(l)} h_u^{(l)} || W^{(l)} h_k^{(l)}]\right)\right)}
+\end{equation}
+where $a$ is a learnable weight vector and $||$ denotes concatenation. This allows the model to learn different weights for different neighbors, which can be particularly useful in our case, as some relationships between stocks may be more informative than others for forecasting.
+
+The computation of the hidden state \(h_u^{(l+1)}\) for each node \(u\) in the GAT layer is performed in parallel for each head (so that different heads may learn different aspects of the relationships between stocks) and then concatenated to form the final representation for the next layer.
 
 \section{Method}
 
@@ -148,6 +167,17 @@ These preprocessing steps are implemented as a reproducible pipeline that can be
 \subsection{Models and Hyperparameters}
 
 The GNN experiments are trained using AdamW with weight decay, cross-entropy loss, gradient clipping, a fixed random seed, and early stopping based on validation macro-F1. The best checkpoint according to validation macro-F1 is saved during training and reloaded before computing the final test score.
+
+The architectures of our models are as follows:
+\begin{itemize}
+    \item \textbf{Random Forest}: we use a Random Forest with 200 trees, a maximum depth of 12, and a minimum of 50 samples per split and 20 per leaf. We add class-weighting to handle the slight class imbalance in the dataset.
+    \item \textbf{LSTM}: we use a 3-layer bidirectional LSTM with a hidden size of 128, followed by two-layer MLP with hidden sizes of 64 and 32, respectively, ReLU activations and dropout of 0.2. We train it with AdamW with a learning rate of 5e-4, weight decay of 1e-3, class-weighted cross-entropy loss, and early stopping with a patience of 15 epochs.
+    \item \textbf{GNN}: Our GNN architecture combines a temporal encoder with a graph attention network. Each node corresponds to one stock and carries a 20-day feature window. We first encode this sequence with a 2-layer bidirectional LSTM (hidden size 128) and apply a learned temporal attention mechanism to aggregate the per-day information into a single node embedding.
+
+          On top of these embeddings, we stack two \texttt{GATConv} layers with edge features: the first has 4 attention heads and a hidden size of 64 (per head), the second aggregates them into a single 64-dimensional representation. We include Batch Normalization (to deal with the inherent non-stationarity of the data), ELU activations, residual connections (to avoid over-smoothing and vanishing gradients), and dropout of 0.3.
+
+          Finally, we apply a 2-layer MLP with hidden sizes of 64 and 32, respectively, ReLU activations and dropout of 0.3, to obtain the final class probabilities. We train the model with AdamW with a learning rate of 6e-4, weight decay of 1e-4, class-weighted cross-entropy loss, gradient clipping with a max norm of 1.0, and early stopping with a patience of 40 epochs (to allow the model to converge given the complexity of the architecture and the noisiness of the data).
+\end{itemize}
 
 \section{Results and Discussion}
 

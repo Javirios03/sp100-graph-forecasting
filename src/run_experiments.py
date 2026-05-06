@@ -2,9 +2,7 @@ from src.train_gnn import run_experiment
 
 experiments = [
     ("corr", True),
-    ("corr", False),
     ("js", True),
-    ("js", False),
 ]
 
 all_results = []

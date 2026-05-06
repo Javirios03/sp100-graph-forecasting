@@ -34,7 +34,7 @@ MAX_SECTOR_EDGES = 5 # Maximum number of edges to add based on sector similarity
 
 # GNN Model
 GNN_MODEL = {
-    "lstm_hidden": 128,
+    "lstm_hidden": 64,
     "gat_hidden": 64,
     "heads": 4,
     "dropout": 0.3,
@@ -45,10 +45,10 @@ GNN_MODEL = {
 TRAINING = {
     "lr": 6e-4,
     "weight_decay": 1e-4,
-    "epochs": 100,
+    "epochs": 150,
     "batch_size": 1,  # Snapshot-based training
     "grad_clip": 1.0,
-    "patience": 15,
+    "patience": 40,
     "seed": 42,
 }
 

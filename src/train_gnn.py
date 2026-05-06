@@ -139,6 +139,13 @@ def run_experiment(graph_type, use_edge_attr, exp_name, training_overrides=None,
     training_cfg = TRAINING.copy()
     model_cfg = GNN_MODEL.copy()
 
+    print(f"Running experiment: {exp_name}")
+    print(f"Using the following configuration:")
+    print(f"Graph type: {graph_type}")
+    print(f"Use edge attributes: {use_edge_attr}")
+    print(f"Training parameters: {training_cfg}")
+    print(f"Model parameters: {model_cfg}")
+
     if training_overrides:
         training_cfg.update(training_overrides)
     if model_overrides:
