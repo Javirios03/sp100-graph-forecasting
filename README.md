@@ -10,13 +10,31 @@ The main objective of this project is to explore the empirical evidence to the q
 uv python install 3.11
 uv python pin 3.11
 uv venv
-uv sync
+uv sync --group dev --extra cu124
+```
+
+The `--extra cu124` flag is optional and only needed if you want to install the CUDA-specific PyTorch build. If you don't need CUDA, simply omit that part:
+
+```bash
+uv sync --group dev
 ```
 
 Run code with:
 
 ```bash
 uv run python -m src.data.run_pipeline --list
+```
+
+Sometimes, the pipeline may omit certain tickers (1st step raising a silent warning). If so, re-run the pipeline. To be sure that all tickers are included, we provide a set of tests in `tests/` that check for consistency in the number of unique tickers and dates across all data files. To run them, execute:
+
+```bash
+uv run pytest tests -q
+```
+
+which should return something like:
+
+```bash
+17 passed in 2.34s
 ```
 
 ### Optional: Force kernel for Jupyter notebooks

@@ -34,7 +34,7 @@ MAX_SECTOR_EDGES = 5 # Maximum number of edges to add based on sector similarity
 
 # GNN Model
 GNN_MODEL = {
-    "lstm_hidden": 64,
+    "lstm_hidden": 128,
     "gat_hidden": 64,
     "heads": 4,
     "dropout": 0.3,

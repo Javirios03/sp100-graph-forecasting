@@ -17,20 +17,62 @@ dependencies = [
     "scipy>=1.14.0",
     "seaborn>=0.13.0",
     "tensorboard>=2.20.0",
-    "torch>=2.6.0",
-    "torch-geometric>=2.6.0",
     "yfinance>=0.2.50",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel",
+    "pytest>=9.0.3",
+    "pytest-xdist>=3.8.0",
+    "black",
+    "ruff",
+]
+
+[project.optional-dependencies]
+cpu = [
+    "torch",
+    "torchvision",
+    "torchaudio",
+]
+cu124 = [
+    "torch",
+    "torchvision",
+    "torchaudio",
+]
+
+[tool.uv]
+conflicts = [
+  [
+    { extra = "cpu" },
+    { extra = "cu124" },
+  ],
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu", extra = "cpu" },
+  { index = "pytorch-cu124", extra = "cu124" },
+]
+torchvision = [
+  { index = "pytorch-cpu", extra = "cpu" },
+  { index = "pytorch-cu124", extra = "cu124" },
+]
+torchaudio = [
+  { index = "pytorch-cpu", extra = "cpu" },
+  { index = "pytorch-cu124", extra = "cu124" },
 ]
 
 [build-system]
 requires = ["uv_build>=0.9.7,<0.10.0"]
 build-backend = "uv_build"
-
-[tool.uv]
-package = false
-
-[dependency-groups]
-dev = [
-    "pytest>=9.0.3",
-    "pytest-xdist>=3.8.0",
-]
