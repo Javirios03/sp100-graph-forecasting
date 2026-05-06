@@ -54,6 +54,16 @@ Centrándonos en el modelo GNN, cabe destacar cómo evolucionan los datos confor
 
 1. Input - X: (T, N, W, F) con T = número de días/snapshots (1168), N = número de nodos (88), W = ventana temporal (20), F = número de features por nodo (7). Y: (T, N) con la clase a predecir para cada acción y cada día. Cada elemento de X es, por lo tanto, un grafo completo correspondiente a un día concreto, con 88 nodos (acciones) y 7 features por nodo, que representan la información relevante de cada acción en los últimos 20 días.
 
+## GNN
+
+Para obtener el mejor rendimiento posible (y teniendo en cuenta que, dada la complejidad de la arquitectura, es más importante en este case hacer una búsqueda razonable de hiperparámetros), decidimos hacer una búsqueda de hiperparámetros manual. Para ello, definimos un _grid search_ con los siguientes hiperparámetros y valores:
+
+- Learning Rate: [1e-4, 5e-4, 1e-3]
+- Weight Decay: [0, 1e-4, 1e-3]
+- Epochs: [20, 40]
+- LSTM Hidden Units: [32, 64]
+- GAT Hidden Units: [32, 64]
+
 # Rango Temporal
 
 En este caso concreto, tenemos un tradeoff importante entre la cantidad de datos disponibles y la relevancia de los mismos. Por un lado, cuanto más largo sea el período de tiempo considerado, más datos tendremos para entrenar el modelo, lo que podría mejorar su capacidad de generalización. Sin embargo, también es cierto que los datos más antiguos podrían no ser tan relevantes para predecir el comportamiento futuro de las acciones. Adicionalmente, en un plazo mayor habrá un mayor numero de cambios estructurales en el mercado (específicamente, cambios de composición del índice), lo que podría dificultar el aprendizaje de patrones consistentes a lo largo del tiempo. SOTA en forecasting de series temporales financieras suele usar un rango temporal de entre 3 y 5 años con splits típicos de 70/15/15 para entrenamiento, validación y test respectivamente, por lo que se podría considerar un rango temporal de 5 años para este proyecto, aunque se podrían probar también rangos más cortos (por ejemplo, 3 años) para evaluar su impacto en el desempeño del modelo.

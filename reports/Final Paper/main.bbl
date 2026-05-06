@@ -1,8 +1,92 @@
-\begin{thebibliography}{0}
+\begin{thebibliography}{10}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
   \providecommand{\doi}[1]{doi: #1}\else
   \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Chavhan et~al.(2024)Chavhan, Raj, Raj, Dutta, and
+  Rodrigues]{rnn_gru_lstm_comparison}
+Suresh Chavhan, Praveen Raj, Prayas Raj, Ashit~Kumar Dutta, and Joel J.P.~C.
+  Rodrigues.
+\newblock Deep learning approaches for stock price prediction: A comparative
+  study of lstm, rnn, and gru models.
+\newblock In \emph{2024 9th International Conference on Smart and Sustainable
+  Technologies (SpliTech)}, pages 01--06, 2024.
+\newblock \doi{10.23919/SpliTech61897.2024.10612666}.
+\newblock URL \url{https://ieeexplore.ieee.org/document/10612666}.
+
+\bibitem[Crespo~González(2025)]{traditional_dl_stock_prediction}
+Noelia Crespo~González.
+\newblock Predicción de series temporales financieras con modelos de machine
+  learning.
+\newblock Unpublished, 2025.
+\newblock URL \url{https://oa.upm.es/91012/}.
+
+\bibitem[Davis and Nielsen(2020)]{rf_stock_prediction}
+Richard~A. Davis and Mikkel~S. Nielsen.
+\newblock Modeling of time series using random forests: theoretical
+  developments, 2020.
+\newblock URL \url{https://arxiv.org/abs/2008.02479}.
+
+\bibitem[Li et~al.(2022)Li, Lv, Liu, and
+  Zhang]{attention_transformers_stock_prediction}
+Yawei Li, Shuqi Lv, Xinghua Liu, and Qiuyue Zhang.
+\newblock Incorporating transformers and attention networks for stock movement
+  prediction.
+\newblock \emph{Complexity}, 2022:\penalty0 1--10, 02 2022.
+\newblock \doi{10.1155/2022/7739087}.
+\newblock URL
+  \url{https://www.researchgate.net/publication/358897376_Incorporating_Transformers_and_Attention_Networks_for_Stock_Movement_Prediction}.
+
+\bibitem[Longa et~al.(2023)Longa, Lachi, Santin, Bianchini, Lepri, Lio,
+  Scarselli, and Passerini]{survey_temporal_gnn}
+Antonio Longa, Veronica Lachi, Gabriele Santin, Monica Bianchini, Bruno Lepri,
+  Pietro Lio, Franco Scarselli, and Andrea Passerini.
+\newblock Graph neural networks for temporal graphs: State of the art, open
+  challenges, and opportunities, 2023.
+\newblock URL \url{https://arxiv.org/abs/2302.01018}.
+
+\bibitem[Matsunaga et~al.(2019)Matsunaga, Suzumura, and
+  Takahashi]{gnn_stock_prediction}
+Daiki Matsunaga, Toyotaro Suzumura, and Toshihiro Takahashi.
+\newblock Exploring graph neural networks for stock market predictions with
+  rolling window analysis, 2019.
+\newblock URL \url{https://arxiv.org/abs/1909.10660}.
+
+\bibitem[Sonani et~al.(2025)Sonani, Badii, and
+  Moin]{lstm_plus_gnn_stock_prediction}
+Meet~Satishbhai Sonani, Atta Badii, and Armin Moin.
+\newblock Stock price prediction using a hybrid lstm-gnn model: Integrating
+  time-series and graph-based analysis, 2025.
+\newblock URL \url{https://arxiv.org/abs/2502.15813}.
+
+\bibitem[Sutradhar et~al.(2021)Sutradhar, Sutradhar, Ahmed~Jhimel, Kumar~Gupta,
+  and Monirujjaman~Khan]{stock_prediction_lstm}
+Koushik Sutradhar, Sourav Sutradhar, Iqbal Ahmed~Jhimel, Suneet Kumar~Gupta,
+  and Mohammad Monirujjaman~Khan.
+\newblock Stock market prediction using recurrent neural network’s lstm
+  architecture.
+\newblock In \emph{2021 IEEE 12th Annual Ubiquitous Computing}, pages
+  0541--0547, 2021.
+
+\bibitem[Vaswani et~al.(2023)Vaswani, Shazeer, Parmar, Uszkoreit, Jones, Gomez,
+  Kaiser, and Polosukhin]{attention_is_all_you_need}
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones,
+  Aidan~N. Gomez, Lukasz Kaiser, and Illia Polosukhin.
+\newblock Attention is all you need, 2023.
+\newblock URL \url{https://arxiv.org/abs/1706.03762}.
+
+\bibitem[Wang(2025)]{temporal_gnn_stock_prediction}
+Tianye Wang.
+\newblock Enhancing stock market prediction with temporal graph neural networks
+  and large language model-based explainability.
+\newblock \emph{Procedia Computer Science}, 274:\penalty0 147--160, 2025.
+\newblock ISSN 1877-0509.
+\newblock \doi{https://doi.org/10.1016/j.procs.2025.12.015}.
+\newblock URL
+  \url{https://www.sciencedirect.com/science/article/pii/S1877050925037366}.
+\newblock 22nd International Multidisciplinary Modeling and Simulation
+  Multiconference (I3M 2025).
 
 \end{thebibliography}

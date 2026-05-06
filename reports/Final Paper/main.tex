@@ -68,13 +68,80 @@ We model the relationships between stocks using a graph structure, where nodes r
 
 \section{Related Work}
 
+Financial forecasting surged as a research area in the late 19th century, with the introduction of statistical methods (such as those developed by Irving Fisher) to analyze market trends. It wasn't, though, until the mid-20th century that advances in computing power allowed for the application of more complex models. All in all, we can roughly divide the evolution of financial forecasting into three main eras: the pre-computing era, the statistical era, and the machine learning era. The pre-computing era was characterized by the use of simple heuristics and technical analysis to predict stock prices.
+
+The statistical era saw the introduction of parametric models that, while much more expressive than the previous heuristics, were based upon explicit assumptions about the underlying data distribution \cite{traditional_dl_stock_prediction}. For example, ARIMA models the conditional mean of the time series as a linear function of past observations and errors, while GARCH models the conditional variance as a function of past squared errors and variances.
+
+The machine learning era, currently under process, is characterized by the use of non-parametric models that can capture complex relationships in the data without making strong assumptions about the underlying distribution. The last decades have seen a surge in implementations of machine learning models for financial forecasting, including general-purpose models such as Random Forests \cite{rf_stock_prediction} and time-series specific models such as LSTMs \cite{stock_prediction_lstm} and Gateted Recurrent Units (GRUs) \cite{rnn_gru_lstm_comparison}. With the introduction of the Transformer architecture \cite{attention_is_all_you_need}, attention-based architectures surged as a promising alternative to recurrent models, as they allow for long-range dependencies to be captured more effectively and in a more parallelizable way. In the specific context of stock forecasting, attention-based models have been shown to outperform recurrent models in certain settings \cite{attention_transformers_stock_prediction}.
+
+Last, there has been a growing interest in the use of graph-based models for financial forecasting. Lead by the assumption that the relationships between stocks can provide valuable information for forecasting (and may not be fully captured by traditional models, as they lack the necessary inductive bias to model these relationships), the last years have witnessed a boom in the implementation of GNN-based models for stock forecasting. These range from purely graph-based models \cite{gnn_stock_prediction} to hybrid models that combine graph-based and sequence-based architectures \cite{survey_temporal_gnn,lstm_plus_gnn_stock_prediction}. Added to this, the hybrid paradigm has evolved from simple combinations of sequence-based and graph-based models to more complex architectures in which the graph structure is integrated into the sequence-based model itself, such as TCGNs (Temporal Convolutional Graph Networks) \cite{temporal_gnn_stock_prediction}.
+
+In general, the results in the literature suggest that incorporating graph geometry into stock forecasting models can lead to improved performance, especially when the relationships between stocks are strong and informative. This does come with a caveat, though, as the performance of graph-based models can be sensitive to the choice of graph structure and the quality of the data used to construct the graph (more so than with simpler models as LSTMs or Random Forests). In this sense, we hypothesize that, due to the variety in graphs we may construct on a given index (for example, based on different financial indicators or with different thresholds for edge creation), the performance of the GNN may vary significantly depending on the graph structure used. Thus, the results of this project will additionally contribute to the understanding of the impact of graph structure on forecasting performance, which is an important aspect to consider when applying graph-based models to financial forecasting.
+
 \section{Background}
+
+
 
 \section{Method}
 
 \section{Experimental Setup}
 
+The data used in this project consists of the historical stock prices of the companies included in the S\&P 100 index, along with relevant financial indicators, depending on the specific model. We use the following variables, common for all models, as features for each stock:
+\begin{enumerate}
+    \item Identifiers and Basic Information:
+          \begin{itemize}
+              \item Ticker symbol
+              \item Date
+              \item Adjusted closing price
+              \item Daily Log Return: $\log\left(\frac{P_t}{P_{t-1}}\right)$, where $P_t$ is the adjusted closing price at time $t$.
+              \item Weekly Log Return: $\log\left(\frac{P_t}{P_{t-5}}\right)$, where $P_{t-5}$ is the adjusted closing price 5 trading days before time $t$ (since stocks are not traded on weekends).
+                    % Explicar más de cómo obtenemos la label en la siguiente sección
+              \item Class label: a categorical variable indicating the direction of the stock price movement (up, neutral, down), defined in terms of the sign of the Weekly Log Return.
+          \end{itemize}
+    \item Volume:
+          \begin{itemize}
+              \item Daily trading volume
+              \item Normalized trading volume: the daily trading volume normalized by the average trading volume of the stock over the entire period ($\frac{V_t - \mu_V}{\sigma_V}$, where $V_t$ is the trading volume at time $t$, $\mu_V$ is the average trading volume, and $\sigma_V$ is the standard deviation of the trading volume).
+          \end{itemize}
+    \item Technical Indicators:
+          \begin{itemize}
+              \item Weekly Moving Average (5MA): the average of the adjusted closing price over the past 5 trading days.
+              \item Monthly Moving Average (20MA): the average of the adjusted closing price over the past 20 trading days.
+              \item Relative Strength Index (RSI): a momentum oscillator that measures the speed and change of price movements, calculated as $RSI = 100 - \frac{100}{1 + RS}$, where $RS$ is the average gain of up periods divided by the average loss of down periods over a specified time frame (10 trading days in our case).
+              \item Rolling Volatility: the standard deviation of the daily log returns over a rolling window of 20 trading days.
+          \end{itemize}
+    \item Structural Information:
+          \begin{itemize}
+              \item Market sector: a categorical variable indicating the market sector to which the stock belongs (e.g., Technology, Healthcare, Financials, etc.).
+              \item Market Cap: a continuous variable indicating the market capitalization of the company (in dollars).
+          \end{itemize}
+\end{enumerate}
+
+In addition to this, for the LSTM model, we include the sequence of the past 20 days of the above features as input, while for the GNN model, we construct two different graph structures based on the following relationships between stocks:
+\begin{itemize}
+    \item Shared market sector AND high correlation between stock returns
+    \item Shared market sector AND low divergence between the distributions of stock returns (measured using the Jensen-Shannon divergence)
+\end{itemize}
+
+All data was obtained from Yahoo Finance using the \texttt{yfinance} Python library, for the period between January 4, 2021 and December 31, 2025. The choice of this period is motivated by two main reasons: (i) 5 years is a common time frame used in the literature for stock forecasting, as it provides a good balance between the amount of data available for training and the relevance of the data (as older data may not be as relevant for forecasting future stock movements), and (ii) it avoids, at least theoretically, the impact of the COVID-19 pandemic on the stock market, which introduced a significant amount of noise and structural changes in the market that could have affected the performance of the models \footnote{After careful analysis, we assumed that the turmoil caused by the COVID-19 pandemic in the stock market had a significant impact until the end of 2020, and that, from January 2021 onwards, the market had stabilized enough for the data to be considered as not significantly affected by the pandemic.}.
+
 \subsection{Data and Preprocessing}
+
+In order to obtain the information that we are to feed into our models, we followed the following steps:
+\begin{itemize}
+    \item We obtained the list of stocks in the S\&P 100 index, along with their corresponding ticker symbols. In specific, we filtered this list to the stocks that have been in the index for the entire period of time considered (January 4, 2021 to December 31, 2025), which resulted in a total of 88 stocks. Even though this filtering step reduces the number of stocks we are considering, we consider the reduction small enough to not significantly affect the performance of the models, while it allows us to avoid dealing with structural changes in the index.
+    \item For each stock, we obtained the data mentioned in the previous section, computing the necessary features. As to the labels, we decided to define a threshold $\epsilon$ on the Weekly Log Return to determine the class labels, in order to avoid labeling small fluctuations as significant movements. Specifically, we defined the class labels as follows:
+          \begin{itemize}
+              \item Up: if the Weekly Log Return is greater than $\epsilon$
+              \item Neutral: if the Weekly Log Return is between $-\epsilon$ and $\epsilon$
+              \item Down: if the Weekly Log Return is less than $-\epsilon$
+          \end{itemize}
+          We set $\epsilon$ to 0.01, which corresponds to a 1\% change in the stock price over a week. Though this threshold is rather arbitrary, it yields a good balance between the number of samples in each class, as mentioned in \ref{appendix:class_distribution}.
+    \item We split the data into training, validation, and test sets, using a chronological split to avoid data leakage. Specifically, we use ratios of 60\%, 20\%, and 20\% for the training, validation, and test sets, respectively. Though this may be a somewhat aggressive split (keeping only 60\% of the data for training), it allows the splits to reflect similar time frames (dividing the dataset into 3, 1, and 1 years, respectively) and, thus, to be more comparable between them.
+
+          This is done in different ways for the different models, though. For the Random Forest, we simply split the data according to the specified ratios and create a catabolic variable in the tabular dataset to indicate the split to which each snapshot belongs. For the LSTM, we create sequences of 20 days for each stock and split these sequences according to the specified ratios. For the GNN, we create the graph structure using the data from the training set, and then split the snapshots of the graph (this is, every node and edge at a given time step).
+\end{itemize}
+
 
 \subsection{Models and Hyperparameters}
 
@@ -95,5 +162,40 @@ While both of us developed the code together and contributed to the writing of t
 
 \bibliographystyle{plainnat}
 \bibliography{references}
+
+\begin{appendix}
+
+    \section{Important Details}
+
+    \subsection{Sector Information}
+    \label{appendix:sector_information}
+
+    The 88 stocks that we are considering in our dataset belong to the following market sectors:
+    \begin{itemize}
+        \item Financial Services: 16 stocks
+        \item Healthcare: 14 stocks
+        \item Technology: 12 stocks
+        \item Industrials: 12 stocks
+        \item Consumer Defensive: 10 stocks
+        \item Consumer Cyclical: 9 stocks
+        \item Communication Services: 7 stocks
+        \item Energy: 3 stocks
+        \item Utilities: 3 stocks
+        \item Real Estate: 2 stocks
+    \end{itemize}
+
+    \subsection{Class Distribution}
+    \label{appendix:class_distribution}
+
+    The distribution of the class labels (up, neutral, down), given $\epsilon = 0.01$, is as follows:
+    \begin{itemize}
+        \item Up: 41.3\%
+        \item Neutral: 24.85\%
+        \item Down: 33.85\%
+    \end{itemize}
+
+    This distribution is relatively balanced and, moreover, may reflect a certain intuition about the stock market, in which, over a week, stocks are more likely to go up or down than to remain neutral (as small fluctuations are not labeled as significant movements) and, overall, there is a slightly higher probability of stocks going up than down (which may be due to the general growth trend of the stock market over time). This distribution should allow the models to learn effectively without being biased towards a particular class.
+
+\end{appendix}
 
 \end{document}

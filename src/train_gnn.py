@@ -93,6 +93,19 @@ def evaluate(model, X, y, indices, edge_index, edge_attr, device):
     return f1_score(all_true, all_preds, average="macro")
 
 def run_experiment(graph_type, use_edge_attr, exp_name, training_overrides=None, model_overrides=None):
+    '''
+    Runs a full training and evaluation cycle for a given set of hyperparameters.
+
+    Args:
+        graph_type (str): Which graph to use ("js" or "corr")
+        use_edge_attr (bool): Whether to use edge attributes or not.
+        exp_name (str): Name of the experiment (used for logging and saving).
+        training_overrides (dict): Optional dict to override default training hyperparameters.
+        model_overrides (dict): Optional dict to override default model hyperparameters.
+
+    Returns:
+        dict: A dictionary containing the results of the experiment (best_val_f1, test_f1, etc.).
+    '''
     training_cfg = TRAINING.copy()
     model_cfg = GNN_MODEL.copy()
 
