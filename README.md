@@ -16,7 +16,7 @@ uv sync
 Run code with:
 
 ```bash
-uv run python src/script.py
+uv run python -m src.data.run_pipeline --list
 ```
 
 ### Optional: Force kernel for Jupyter notebooks
@@ -27,7 +27,7 @@ uv run python -m ipykernel install --user --name sp100-graph-forecasting
 
 ### Optional: Enable CUDA for PyTorch and PyTorch Geometric
 
-The Project TOML file doesn't explicitly document what the system is to do with all PyTorch related dependencies, so we will need to install them manually. The versions of PyTorch and PyTorch Geometric specified in the Project TOML file are compatible with CUDA 12.4, so we recommend installing that version of CUDA to ensure optimal performance.
+The default dependencies install the standard PyTorch and PyTorch Geometric packages. If you need a CUDA-specific PyTorch wheel, install the CUDA build after `uv sync`:
 
 ```bash
 uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
@@ -47,15 +47,23 @@ cuda version: 12.4
 device count: 1
 ```
 
-Then, and only once you have verified that CUDA is properly enabled, you can proceed to install PyTorch Geometric with CUDA support:
+## Scripts Execution
+
+### Data pipeline
+
+The pipeline should be executed from the repository root using module mode so imports resolve consistently:
 
 ```bash
-uv pip install torch-geometric
+uv run python -m src.data.run_pipeline
 ```
 
-which should automatically install the compatible versions of `torch-scatter`, `torch-sparse`, `torch-cluster` and `torch-spline-conv` with CUDA support.
+To run only part of the pipeline:
 
-## Scripts Execution
+```bash
+uv run python -m src.data.run_pipeline --from-step 09_build_graphs --to-step 10_build_gnn_dataset
+```
+
+The integration tests in `tests/` require generated files under `data/interim/` and `data/processed/`. If those artifacts are missing, the data-dependent tests are skipped and the unit tests still run.
 
 ### Tests
 

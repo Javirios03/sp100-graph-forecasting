@@ -19,6 +19,7 @@ data/interim/
 data/processed/*.npy
 data/processed/*.parquet
 data/processed/*.pkl
+data/processed/*.pt
 
 # Models, results and runs - Exclude all and include only final items
 models/
@@ -73,7 +74,6 @@ Thumbs.db
 *.tar.gz
 
 # UV/Poetry/Pipenv
-uv.lock
 poetry.lock
 Pipfile.lock
 .pdm-*
