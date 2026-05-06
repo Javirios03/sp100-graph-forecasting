@@ -64,14 +64,6 @@ def remap_targets(y):
     return y_remap
 
 
-def compute_class_weights(y, indices, device, num_classes=3):
-    labels = y[indices].reshape(-1)
-    counts = np.bincount(labels, minlength=num_classes).astype(np.float32)
-    counts = np.maximum(counts, 1.0)
-    weights = counts.sum() / (num_classes * counts)
-    return torch.tensor(weights, dtype=torch.float32, device=device)
-
-
 def validate_splits(train_idx, val_idx, test_idx):
     missing = []
     if len(train_idx) == 0:
@@ -190,13 +182,7 @@ def run_experiment(graph_type, use_edge_attr, exp_name, training_overrides=None,
         edge_dim=edge_attr.shape[1] if edge_attr is not None else None,
     ).to(device)
 
-    if training_cfg.get("class_weighting", True):
-        class_weights = compute_class_weights(y, train_idx, device)
-        print(f"Class weights: {class_weights.detach().cpu().numpy().round(3).tolist()}")
-    else:
-        class_weights = None
-
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    criterion = nn.CrossEntropyLoss()
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -269,7 +255,6 @@ def run_experiment(graph_type, use_edge_attr, exp_name, training_overrides=None,
             "lr": training_cfg["lr"],
             "weight_decay": training_cfg["weight_decay"],
             "grad_clip": training_cfg.get("grad_clip", 0.0) or 0.0,
-            "class_weighting": training_cfg.get("class_weighting", True),
             "lstm_hidden": model_cfg["lstm_hidden"],
             "gat_hidden": model_cfg["gat_hidden"],
             "lstm_layers": model_cfg["lstm_layers"],

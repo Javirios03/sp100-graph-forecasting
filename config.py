@@ -50,7 +50,6 @@ TRAINING = {
     "grad_clip": 1.0,
     "patience": 15,
     "seed": 42,
-    "class_weighting": True,
 }
 
 GRAPH_TYPE = "corr"  # "corr" or "js"
