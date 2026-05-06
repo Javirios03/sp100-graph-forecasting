@@ -172,12 +172,19 @@ The architectures of our models are as follows:
 \begin{itemize}
     \item \textbf{Random Forest}: we use a Random Forest with 200 trees, a maximum depth of 12, and a minimum of 50 samples per split and 20 per leaf. We add class-weighting to handle the slight class imbalance in the dataset.
     \item \textbf{LSTM}: we use a 3-layer bidirectional LSTM with a hidden size of 128, followed by two-layer MLP with hidden sizes of 64 and 32, respectively, ReLU activations and dropout of 0.2. We train it with AdamW with a learning rate of 5e-4, weight decay of 1e-3, class-weighted cross-entropy loss, and early stopping with a patience of 15 epochs.
-    \item \textbf{GNN}: Our GNN architecture combines a temporal encoder with a graph attention network. Each node corresponds to one stock and carries a 20-day feature window. We first encode this sequence with a 2-layer bidirectional LSTM (hidden size 128) and apply a learned temporal attention mechanism to aggregate the per-day information into a single node embedding.
+    \item \textbf{GNN}: Our GNN architecture combines a temporal encoder with a graph attention network. Each node corresponds to one stock and carries a 20-day feature window. We first encode this sequence with a 2-layer bidirectional LSTM (hidden size 128) and apply a learned temporal attention mechanism to aggregate the per-day information into a single node embedding. We include a visualization of the architecture in Figure \ref{fig:gat_architecture}.
 
           On top of these embeddings, we stack two \texttt{GATConv} layers with edge features: the first has 4 attention heads and a hidden size of 64 (per head), the second aggregates them into a single 64-dimensional representation. We include Batch Normalization (to deal with the inherent non-stationarity of the data), ELU activations, residual connections (to avoid over-smoothing and vanishing gradients), and dropout of 0.3.
 
           Finally, we apply a 2-layer MLP with hidden sizes of 64 and 32, respectively, ReLU activations and dropout of 0.3, to obtain the final class probabilities. We train the model with AdamW with a learning rate of 6e-4, weight decay of 1e-4, class-weighted cross-entropy loss, gradient clipping with a max norm of 1.0, and early stopping with a patience of 40 epochs (to allow the model to converge given the complexity of the architecture and the noisiness of the data).
 \end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/gat_architecture.png}
+    \caption{Illustration of the GNN architecture we implement (courtesy of \texttt{Claude}). The temporal encoder (LSTM + attention) is applied independently to each node, while the GAT layers capture the relationships between stocks. The final MLP layer is applied independently to each node to obtain the class probabilities.}
+    \label{fig:gat_architecture}
+\end{figure}
 
 \section{Results and Discussion}
 
@@ -201,7 +208,7 @@ In order to complete the project, we used the following AI tools:
     \item \textbf{GitHub Copilot}: Mainly during the data preprocessing stage, to write code for feature engineering and data cleaning. Additionally, it was marginally used throughout the whole codebase to solve minor coding issues and bugs.
     \item \textbf{Perplexity AI}: In our personal experience, Comet is the best one for brain-storming and generating ideas, as well as for improve the legibility of the report. We used it mainly for these purposes, and to a lesser extent for writing assistance, such as recovering useful sources and references for our work.
     \item \textbf{ChatGPT Codex}: Given its ability to analyze the complete structure of a codebase, we used it to review the code and suggest points of failure in the connection between individual components, as well as to suggest improvements in the code structure and modularity.
-    \item \textbf{Claude Code}: While Comet is better for brainstorming and writing, we found that Claude is better for code generation. We used it mainly to, given the pseudocode of an architecture or a function, generate the corresponding code in Python.
+    \item \textbf{Claude}: While Comet is better for brainstorming and writing, we found that Claude is better for code generation. We used it mainly to, given the pseudocode of an architecture or a function, generate the corresponding code in Python. Additionally, we used it to generate the illustration of the GNN architecture included in the report.
 \end{itemize}
 
 \bibliographystyle{plainnat}
