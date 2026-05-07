@@ -168,7 +168,7 @@ Training and evaluation of the models is implemented in a modular way that can b
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\textwidth]{figures/training_curves_row.png}
+    \includegraphics[width=0.9\textwidth]{figures/training_curves_row.png}
     \caption{Training curves for the three variants. We can observe that the LSTM was cut short at the 10-epoch mark, since it didn't show any improvement in the validation macro-F1. On the other hand, both GNN variants improved mainly in the loss, while the validation macro-F1 remained rather stagnant. The JS-based GNN shows a slightly better performance than the correlation-based one. Best checkpoints are highlighted with a circle for each model.}
     \label{fig:training_curves}
 \end{figure}
@@ -179,36 +179,65 @@ From the training curves, we can observe several things:
     \item Both GNN variants seem to have their performance bounded by the non-stationarity and noisiness of the data. Even though their training loss steadily improves, their validation macro-F1 follows a really noisy trajectory, being rather constant from the epoch 80 onwards. As we will see in the following illustration \ref{fig:model_comparison}, this isn't so clearly a sign of overfitting but rather that the model isn't able to capture the underlying relationships in the data.
 \end{itemize}
 
-% Incluir tabla con los resultados finales de los modelos, incluyendo el Random Forest, y discutir los resultados. 
+These two observatorios shed some light on the possible answer to our thesis: On one hand, the models may not be able to harness the correct symmetries in the data (and forcing time warping symmetry in the case of LSTM and node permutation symmetry in the case of GNNs may be misleading them). On the other hand, the models may actually be able to capture some of the relationships in the data, but the signals present in the data may be too weak and noisy for the model to learn them effectively, which would be in line with the insights of \cite{limitations_of_standard_gnn_stock_prediction}. As additional evidence for this second hypothesis, we present in Figure \ref{fig:model_comparison} the final test scores for all models, including the Random Forest. The main thing we would like to highlight is something we can pbserve in the left-most plot: All models have Validation macro-F1 and Test macro-F1 scores that are very close to each other, which may be a sign that (i) the models aren't overfitting (since they're able to generalize to the test set) but also that (ii) the models aren't able to capture much more than noise in the data, as their performance is really similar to each other and doesn't show a significant improvement over the baselines.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\textwidth]{figures/model_comparison_row.png}
+    \includegraphics[width=0.9\textwidth]{figures/model_comparison_row.png}
     \caption{Comparison of all models' performance. Validation and Test macro-F1 on the left, and Test F1 divided by the class distribution on the right.}
     \label{fig:model_comparison}
 \end{figure}
 
+From the models' performance, we can get several conclusions: (i) graph-based models do not clearly outperform simpler architecture. Both the RF and the LSTM reach slightly higher macro-F1 scores on the test set than the GNNs. Under our experimental setup (whose conclusions may not be directly transferred to other settings, as we will discuss in the next section), the inductive bias introduced by the GNN architecture doesn't seem to be beneficial for forecasting stock movements.
+
 \subsection{Qualitative Analysis}
 
-In addition to the conclusions that we can derive from the different metrics, we provide, in the following paragraphs, an analysis on the relative performance of the models depending on the class. In order to do so, we include in Figure \ref{fig:class_comparison} the Confusion Matrices for the best checkpoints of each model, and we analyze the performance of the models depending on the class.
+In addition to the conclusions that we can derive from the different metrics, we provide, in the following paragraphs, an analysis on the relative performance of the models depending on the class. In order to do so, we include in Figure \ref{fig:class_comparison} the Confusion Matrices for the best checkpoints of each model, and we analyze the performance of the models depending on the class, as well as the individual metrics for each model, which we include in Table \ref{tab:test_metrics}.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\textwidth]{figures/confusion_matrices_2x2.png}
+    \includegraphics[width=0.75\textwidth]{figures/confusion_matrices_2x2.png}
     \caption{Confusion Matrices for the best checkpoints of each model.}
     \label{fig:class_comparison}
 \end{figure}
 
+The confusion matrices give us a really interesting intuition about the models' performance. Even though all models have relatively similar overall performance, GNN-based variants are rather effective dealing with the \texttt{Down} class. This comes at the cost of a worse performance on the \texttt{Neutral} class, though. Thus, they seem to have a bias towards predicting more \textbf{agressive} movements. On the other hand, the Random Forest has a more well-balanced approach, having similar errors in all classes (probably, due to the class-balance mechanism inherent in the model training, which forces the model to pay attention to all classes). The LSTM, last, has a behavior that opposite to the GNNs, being more effective at predicting the \texttt{Up} class and having a worse performance on the other two classes. Therefore, it tends to have a bias towards predicting more \textbf{positive} movements. These insights suggest that the models are able to capture some of the relationships in the data, but they may not be able to capture all of them effectively, which may be due to the noisiness of the data and the weakness of the signals present in it.
+
+\begin{table}
+    \centering
+    \begin{tabular}{lrrrr}
+        \toprule
+        Model             & Accuracy & Precision Macro & Recall Macro & F1 Macro \\
+        \midrule
+        Random Forest     & 0.352    & 0.349           & 0.352        & 0.347    \\
+        LSTM              & 0.376    & 0.345           & 0.344        & 0.341    \\
+        GNN (Correlation) & 0.350    & 0.345           & 0.338        & 0.319    \\
+        GNN (JS)          & 0.345    & 0.326           & 0.328        & 0.303    \\
+        \bottomrule
+    \end{tabular}
+    \vspace{0.5em}
+    \caption{Test metrics for all models.}
+    \label{tab:test_metrics}
+\end{table}
+
+Last of all, these conclusions can also be backed by the individual metrics. GNN-based variants have a slightly higher accuracy than recall, but a significantly lower precision than the other models, which is in line with the fact that they have a bias towards predicting more aggressive movements (which may be correct more often than not, but also leads to more false positives). The Random Forest seems to achieve a good equilibrium between precision and recall.
+
 \section{Conclusions and Future Work}
 
-Points to explain:
+% Points to explain:
 
-\begin{itemize}
-    \item Are the inductive biases introduced by the GNN architecture beneficial for forecasting stock movements? This is, even though we as humans may understand indeces as graphs, imposing this structure on the model may not be beneficial.
-    \item How does this relate to a sort of incorrect reward shaping, similar to Reinforcement Learning? By forcing the model to be invariant to certain symmetries, we may be forbidding it to pursue different strategies that could be more effective.
-    \item Discuss the limitations of our approach and why it may not actually shed a lot of light on the question of whether graph geometry is beneficial for stock forecasting, connecting with the insights of \cite{limitations_of_standard_gnn_stock_prediction}.
-    \item Discuss how adding real-time information (by means, for example, of using LLMs paired with the GNN to extract information from news articles or social media) could help the model to capture important relationships between stocks, such as introduced by \cite{chatgpt_gnn_stock_prediction}.
-\end{itemize}
+% \begin{itemize}
+%     \item Are the inductive biases introduced by the GNN architecture beneficial for forecasting stock movements? This is, even though we as humans may understand indeces as graphs, imposing this structure on the model may not be beneficial.
+%     \item How does this relate to a sort of incorrect reward shaping, similar to Reinforcement Learning? By forcing the model to be invariant to certain symmetries, we may be forbidding it to pursue different strategies that could be more effective.
+%     \item Discuss the limitations of our approach and why it may not actually shed a lot of light on the question of whether graph geometry is beneficial for stock forecasting, connecting with the insights of \cite{limitations_of_standard_gnn_stock_prediction}.
+%     \item Discuss how adding real-time information (by means, for example, of using LLMs paired with the GNN to extract information from news articles or social media) could help the model to capture important relationships between stocks, such as introduced by \cite{chatgpt_gnn_stock_prediction}.
+% \end{itemize}
+
+Our experiments show that, under our setup, imposing a graph structure over the S\&P~100 does not lead to clear improvements in aggregate predictive performance over strong non-graph baselines. While the GNN variants change the pattern of errors across classes, they do not surpass the Random Forest or the LSTM in macro-F1, which suggests that the inductive biases encoded by standard message-passing architectures are not automatically aligned with the structure of financial time series. This observation is consistent with recent work arguing that conventional GNNs may be ill-suited for stock prediction because they do not fully exploit temporal information or future-aware signals, and may even propagate noise through the graph \cite{limitations_of_standard_gnn_stock_prediction}.
+
+A key limitation of our study is that we focus on static graphs built from historical correlations and sector information, combined with relatively standard GNN layers. As discussed by Liu et al. \cite{limitations_of_standard_gnn_stock_prediction}, more expressive designs that incorporate future-aware distillation, richer temporal modelling, or adaptive graph construction can substantially change the role of graph geometry in stock forecasting. In this sense, our negative result should be interpreted as evidence about a specific family of graph constructions and architectures, rather than as a definitive answer on whether graph structure is beneficial in general. Exploring temporal or event-driven graphs, and architectures explicitly designed for such inputs \cite{survey_temporal_gnn,temporal_gnn_stock_prediction}, is a natural next step.
+
+Finally, several recent works suggest that the value of graph-based models may emerge more clearly when they are coupled with complementary information sources. Recent works propose enriching GNNs with news-derived signals extracted by large language models, showing that text-informed edges and node features can improve the prediction of stock movements \cite{chatgpt_gnn_stock_prediction}. Building on this idea, future work could integrate real-time textual data (news, reports, or social media) into our framework, using LLMs to construct dynamic, information-aware graphs on top of the price-based structure. This direction would allow us to test whether graph geometry becomes more beneficial when it encodes both quantitative co-movements and qualitative relationships between firms.
 
 \newpage
 
