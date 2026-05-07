@@ -1,0 +1,22 @@
+\begin{table}
+\caption{Per-class test metrics for all models.}
+\label{tab:test_per_class_metrics}
+\begin{tabular}{llrrrr}
+\toprule
+Model & Class & Precision & Recall & F1 & Support \\
+\midrule
+Random Forest & neutral & 0.275 & 0.337 & 0.303 & 4995 \\
+Random Forest & up & 0.438 & 0.334 & 0.379 & 9300 \\
+Random Forest & down & 0.335 & 0.385 & 0.358 & 7155 \\
+LSTM & down & 0.339 & 0.269 & 0.300 & 7155 \\
+LSTM & up & 0.440 & 0.542 & 0.486 & 9300 \\
+LSTM & neutral & 0.255 & 0.221 & 0.237 & 4995 \\
+GNN (Correlation) & down & 0.329 & 0.579 & 0.420 & 6551 \\
+GNN (Correlation) & neutral & 0.249 & 0.164 & 0.198 & 4456 \\
+GNN (Correlation) & up & 0.456 & 0.271 & 0.340 & 8529 \\
+GNN (JS) & neutral & 0.203 & 0.112 & 0.144 & 4456 \\
+GNN (JS) & down & 0.332 & 0.598 & 0.427 & 6551 \\
+GNN (JS) & up & 0.442 & 0.273 & 0.337 & 8529 \\
+\bottomrule
+\end{tabular}
+\end{table}

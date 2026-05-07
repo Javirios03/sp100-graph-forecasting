@@ -235,6 +235,66 @@ def build_summary_frame(results):
     return df
 
 
+def build_test_metrics_frame(results):
+    rows = []
+    for result in results:
+        test_metrics = result.get("metrics", {}).get("test", {})
+        if not test_metrics:
+            continue
+        rows.append(
+            {
+                "model": result["model"],
+                "experiment": result["experiment"],
+                "accuracy": test_metrics.get("accuracy"),
+                "precision_macro": test_metrics.get("precision_macro"),
+                "recall_macro": test_metrics.get("recall_macro"),
+                "f1_macro": test_metrics.get("f1_macro"),
+            }
+        )
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df = df.sort_values("model", key=lambda s: s.map(model_order_key)).reset_index(drop=True)
+    return df
+
+
+def build_per_class_metrics_frame(results):
+    rows = []
+    for result in results:
+        test_metrics = result.get("metrics", {}).get("test", {})
+        for class_name, values in test_metrics.get("per_class", {}).items():
+            rows.append(
+                {
+                    "model": result["model"],
+                    "experiment": result["experiment"],
+                    "class": class_name,
+                    "precision": values.get("precision"),
+                    "recall": values.get("recall"),
+                    "f1": values.get("f1"),
+                    "support": values.get("support"),
+                }
+            )
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df = df.sort_values("model", key=lambda s: s.map(model_order_key)).reset_index(drop=True)
+    return df
+
+
+def save_latex_table(df, output_path, caption, label):
+    pretty = df.copy()
+    pretty.columns = [
+        col.replace("_", " ").title().replace("F1", "F1")
+        for col in pretty.columns
+    ]
+    latex = pretty.to_latex(
+        index=False,
+        float_format="%.3f",
+        caption=caption,
+        label=label,
+        escape=True,
+    )
+    output_path.write_text(latex, encoding="utf-8")
+
+
 def plot_f1_bars(summary_df, output_dir):
     df = summary_df.melt(
         id_vars=["model", "experiment"],
@@ -503,10 +563,37 @@ def main():
 
     history_df = build_history_frame(results)
     summary_df = build_summary_frame(results)
+    test_metrics_df = build_test_metrics_frame(results)
+    per_class_metrics_df = build_per_class_metrics_frame(results)
+
     summary_path = args.output_dir / "model_results_summary.csv"
     summary_df.to_csv(summary_path, index=False)
 
     saved_paths = [summary_path]
+    if not test_metrics_df.empty:
+        test_metrics_path = args.output_dir / "test_metrics_summary.csv"
+        test_metrics_latex_path = args.output_dir / "test_metrics_summary.tex"
+        test_metrics_df.to_csv(test_metrics_path, index=False)
+        save_latex_table(
+            test_metrics_df.drop(columns=["experiment"]),
+            test_metrics_latex_path,
+            "Test metrics for all models.",
+            "tab:test_metrics",
+        )
+        saved_paths.extend([test_metrics_path, test_metrics_latex_path])
+
+    if not per_class_metrics_df.empty:
+        per_class_metrics_path = args.output_dir / "test_per_class_metrics.csv"
+        per_class_metrics_latex_path = args.output_dir / "test_per_class_metrics.tex"
+        per_class_metrics_df.to_csv(per_class_metrics_path, index=False)
+        save_latex_table(
+            per_class_metrics_df.drop(columns=["experiment"]),
+            per_class_metrics_latex_path,
+            "Per-class test metrics for all models.",
+            "tab:test_per_class_metrics",
+        )
+        saved_paths.extend([per_class_metrics_path, per_class_metrics_latex_path])
+
     if not history_df.empty:
         history_path = args.output_dir / "training_history.csv"
         history_df.to_csv(history_path, index=False)
